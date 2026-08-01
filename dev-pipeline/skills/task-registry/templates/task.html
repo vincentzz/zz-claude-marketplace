@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>任务总表</title>
+<!--
+  本文件由 architect 通过 taskctl 维护，是任务状态的唯一真源。
+  契约：<tbody id="tasks"> 内每个任务恰好一行，行序即优先级（越靠上越高）。
+  除 taskctl 外，任何人（包括各 agent）不得改动 tbody 内容；手改即契约违反。
+-->
+<style>
+  :root {
+    --bg: #fbfaf7; --ink: #1f2328; --line: #d9d4c9; --dim: #6b7280;
+    --done: #0a6b3d; --wip: #9a5b00; --todo: #6b7280;
+    --done-bg: #e2f2e8; --wip-bg: #f7ead2; --todo-bg: #ececec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --ink: #d8dce2; --line: #33383f; --dim: #8b929c;
+      --done: #6fd39a; --wip: #e5b567; --todo: #9aa1ab;
+      --done-bg: #12301f; --wip-bg: #34270e; --todo-bg: #24272c;
+    }
+  }
+  body {
+    margin: 2.5rem auto; max-width: 62rem; padding: 0 1.25rem;
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.6 "IBM Plex Mono", "Sarasa Mono SC", ui-monospace, monospace;
+  }
+  h1 { font-size: 1.15rem; letter-spacing: .06em; font-weight: 600; }
+  h1::before { content: "▤ "; color: var(--dim); }
+  p.hint { color: var(--dim); font-size: .85rem; margin-top: -.4rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 1.2rem; }
+  th, td { border: 1px solid var(--line); padding: .45rem .7rem; text-align: left; }
+  th { font-weight: 600; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  td.id { width: 4.5rem; color: var(--dim); }
+  td.st { width: 8.5rem; font-size: .85rem; white-space: nowrap; }
+  td.st.done        { color: var(--done); background: var(--done-bg); }
+  td.st.in-progress { color: var(--wip);  background: var(--wip-bg); }
+  td.st.not-started { color: var(--todo); background: var(--todo-bg); }
+  td.task a { color: inherit; }
+</style>
+</head>
+<body>
+<h1>任务总表</h1>
+<p class="hint">行序即优先级。本表由 architect 经 taskctl 维护；请勿手改表格行。</p>
+<table>
+<thead>
+<tr><th>taskId</th><th>Test</th><th>Dev</th><th>Task</th></tr>
+</thead>
+<tbody id="tasks">
+</tbody>
+</table>
+</body>
+</html>
