@@ -6,8 +6,8 @@ Vincent's [Claude Code](https://code.claude.com) plugin marketplace.
 
 | Plugin | Version | Description |
 |---|---|---|
-| [dev-pipeline](./dev-pipeline/) | 0.9.2 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
-| [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.2 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
+| [dev-pipeline](./dev-pipeline/) | 0.9.3 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
+| [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.3 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
 
 See [dev-pipeline/README.md](./dev-pipeline/README.md) for the full design, workflow, and tuning guide ([中文版](./dev-pipeline-cn/README.md)).
 
