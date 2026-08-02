@@ -1,4 +1,8 @@
 # Changelog
+## 0.9.6 (profile-switcher)
+- `/use-profile` discovery prefers the install path reported by `claude plugin list --json`; the version-cache glob is a fallback, and an unreadable manifest degrades to asking the user instead of failing.
+- New unbind mode: `bind-profile.py --unbind` drops the `agent` key and writes explicit `false` for every profile plugin — the project returns to plain Claude after one restart.
+
 ## 0.9.5
 - New **profile-switcher** plugin (always-on, `defaultEnabled: true`): `/use-profile` discovers installed profile plugins (those declaring `entryAgent` in plugin.json), then binds one to the project via a deterministic script — enables it, writes explicit `false` for sibling profiles, pins `"agent": "<plugin>:<entryAgent>"` in `.claude/settings.local.json`. One restart later, bare `claude` starts in the profile's entry agent. No remote code: everything runs from the locally installed plugin.
 - dev-pipeline / dev-pipeline-cn: declare `entryAgent: architect` in plugin.json.

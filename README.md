@@ -8,7 +8,7 @@ Vincent's [Claude Code](https://code.claude.com) plugin marketplace.
 |---|---|---|
 | [dev-pipeline](./dev-pipeline/) | 0.9.5 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
 | [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.5 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
-| [profile-switcher](./profile-switcher/) | 0.9.5 | Always-on utility. `/use-profile` binds or switches the project's profile plugin: enables exactly one, writes explicit `false` for siblings, pins the profile's entry agent as the project default. |
+| [profile-switcher](./profile-switcher/) | 0.9.6 | Always-on utility. `/use-profile` binds, switches, or unbinds the project's profile plugin: enables exactly one (explicit `false` for siblings) and pins its entry agent as the project default; unbind returns the project to plain Claude. |
 
 See [dev-pipeline/README.md](./dev-pipeline/README.md) for the full design, workflow, and tuning guide ([中文版](./dev-pipeline-cn/README.md)).
 
