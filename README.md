@@ -8,11 +8,13 @@ Vincent's [Claude Code](https://code.claude.com) plugin marketplace.
 |---|---|---|
 | [dev-pipeline](./dev-pipeline/) | 0.9.5 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
 | [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.5 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
+| [trade-study](./trade-study/) | 0.1.0 | A three-role trade-study pipeline for decision-making: **analyst / scout / challenger**. Isolated per-candidate research with source provenance, ordinal-weighted criteria matrix, adversarial review, deliverables as HTML + PDF + PPTX. |
+| [trade-study-cn](./trade-study-cn/) | 0.1.0 | 中文版 of trade-study — same pipeline with all agents, skills, and docs in Chinese. |
 | [profile-switcher](./profile-switcher/) | 0.9.6 | Always-on utility. `/use-profile` binds, switches, or unbinds the project's profile plugin: enables exactly one (explicit `false` for siblings) and pins its entry agent as the project default; unbind returns the project to plain Claude. |
 
-See [dev-pipeline/README.md](./dev-pipeline/README.md) for the full design, workflow, and tuning guide ([中文版](./dev-pipeline-cn/README.md)).
+See [dev-pipeline/README.md](./dev-pipeline/README.md) for the full design, workflow, and tuning guide ([中文版](./dev-pipeline-cn/README.md)), and [trade-study/README.md](./trade-study/README.md) for the trade-study design ([中文版](./trade-study-cn/README.md)).
 
-> Install **either** dev-pipeline **or** dev-pipeline-cn, not both — they define the same agent names (architect, qa, dev, …) and enabling both at once has undefined behavior.
+> Within each EN/CN pair (dev-pipeline / dev-pipeline-cn, trade-study / trade-study-cn), enable only **one** per project — the pair defines the same agent names, and enabling both at once has undefined behavior. Different pipelines (a dev-pipeline and a trade-study) also stay one-per-project: profiles are for switching, not stacking.
 
 ## Requirements
 

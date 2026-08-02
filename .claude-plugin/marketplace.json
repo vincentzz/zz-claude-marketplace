@@ -15,6 +15,16 @@
       "description": "五角色软件开发流水线：architect/qa/dev/双 reviewer，机械判责，语言无关（中文版）"
     },
     {
+      "name": "trade-study",
+      "source": "./trade-study",
+      "description": "Three-role trade-study profile: analyst/scout/challenger — isolated per-candidate research with provenance, ordinal-weighted matrix, adversarial review, HTML+PDF+PPTX deliverables"
+    },
+    {
+      "name": "trade-study-cn",
+      "source": "./trade-study-cn",
+      "description": "三角色技术选型评估 profile：analyst/scout/challenger——候选项隔离调研、证据溯源、序数加权矩阵、对抗性评审，交付 HTML+PDF+PPTX（中文版）"
+    },
+    {
       "name": "profile-switcher",
       "source": "./profile-switcher",
       "description": "Always-on utility: /use-profile binds or switches the per-project profile plugin (enables one, disables siblings, pins its entry agent as the project default)"

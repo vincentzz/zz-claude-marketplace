@@ -1,4 +1,10 @@
 # Changelog
+## 0.1.0 (trade-study, trade-study-cn)
+- New **trade-study** profile plugin (and **trade-study-cn**, its Chinese twin): structured comparison of solutions/tech stacks for decision-making. Three roles — analyst (entry agent, main session: interview → brief → synthesis → deliverables), scout (one per candidate, parallel, structurally isolated from the other scouts' findings), challenger (one adversarial pass over the synthesis, [BLOCKING]/[SUGGEST], ≤2 rounds).
+- Decisions recorded at birth: scoring is **ordinal + user weights** (`--`…`++` mapped −2…+2 — no fake numeric precision); scout research **depth is set per study in the brief**; deliverables (single-source `synthesis.md` → HTML + PDF + PPTX decision brief) use a **designed** aesthetic, not a default theme; **bilingual from day one** (EN + CN variants), deliverables follow the brief's language in both.
+- Deliberately thin mechanical layer: no task queues, worktrees, or gates — analysis has no ground truth to turn from red to green, so structural adversity (provenance discipline, scout isolation, challenger arithmetic/completeness checks) substitutes for mechanical acceptance. 3 agents, 5 skills; every future addition needs evidence from a real study.
+- Both manifests declare `entryAgent: analyst` + `defaultEnabled: false` — /use-profile discovers and binds them like any profile. Enable at most one of the pair per project (same agent names).
+
 ## 0.9.6 (profile-switcher)
 - `/use-profile` discovery prefers the install path reported by `claude plugin list --json`; the version-cache glob is a fallback, and an unreadable manifest degrades to asking the user instead of failing.
 - New unbind mode: `bind-profile.py --unbind` drops the `agent` key and writes explicit `false` for every profile plugin — the project returns to plain Claude after one restart.
