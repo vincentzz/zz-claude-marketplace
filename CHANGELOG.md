@@ -1,4 +1,7 @@
 # Changelog
+## 0.9.4
+- Both plugins now ship `defaultEnabled: false` (Claude Code ≥2.1.154): installing no longer enables them everywhere. Enable per project with `claude plugin enable <name>@zz-claude-marketplace --scope local`. Existing installs are unaffected (an explicit `enabledPlugins: true` written at install time still wins over `defaultEnabled`).
+
 ## 0.9.3
 - architect/dev/dev-reviewer now use the user's and project's own installed skills: dev-reviewer gains the Skill tool (it previously could not see any non-preloaded skills); all three roles get a discipline for applying installed convention/library skills — project conventions outrank generic style, the spec outranks everything; architect names applicable skills in dev dispatch prompts. Both dev-pipeline and dev-pipeline-cn.
 

@@ -6,8 +6,8 @@ Vincent's [Claude Code](https://code.claude.com) plugin marketplace.
 
 | Plugin | Version | Description |
 |---|---|---|
-| [dev-pipeline](./dev-pipeline/) | 0.9.3 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
-| [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.3 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
+| [dev-pipeline](./dev-pipeline/) | 0.9.4 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
+| [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.4 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
 
 See [dev-pipeline/README.md](./dev-pipeline/README.md) for the full design, workflow, and tuning guide ([中文版](./dev-pipeline-cn/README.md)).
 
@@ -33,10 +33,12 @@ claude plugin marketplace add vincentzz/zz-claude-marketplace
 claude plugin install dev-pipeline@zz-claude-marketplace
 ```
 
-Then start the pipeline from any project root (must be a git repository):
+Both plugins ship with `defaultEnabled: false` — installing loads them without enabling them anywhere. Enable per project, then start the pipeline from the project root (must be a git repository):
 
 ```bash
-cd <your-project> && claude --agent architect --model fable
+cd <your-project>
+claude plugin enable dev-pipeline@zz-claude-marketplace --scope local
+claude --agent architect --model fable
 ```
 
 On first run the architect detects an uninitialized project and walks through `/pipeline-init` — an idempotent setup that installs the protocol shim, interviews you about build conventions, and seeds the task registry. Re-running it on an initialized project is a no-op.
@@ -62,10 +64,10 @@ You can also enable auto-update: `/plugin` → **Marketplaces** tab → select `
 ## Enabling / disabling
 
 ```bash
-claude plugin enable dev-pipeline    # or disable
+claude plugin enable dev-pipeline@zz-claude-marketplace --scope local    # or disable
 ```
 
-or use the `/plugin` UI. To toggle per project, set `enabledPlugins` in that project's `.claude/settings.local.json` (the local layer overrides project and user layers). Convention: enable exactly one pipeline profile per project.
+or use the `/plugin` UI. `--scope local` writes the project's `.claude/settings.local.json` (the local layer overrides project and user layers), so the profile is bound to the project — switching profiles is just `cd`. Note that `enabledPlugins` entries fall through per plugin: a missing entry at one layer inherits from the layer below, so to force a plugin off in one project, write an explicit `false`. Convention: enable exactly one pipeline profile per project.
 
 ## Local development
 
