@@ -13,6 +13,11 @@
       "name": "dev-pipeline-cn",
       "source": "./dev-pipeline-cn",
       "description": "五角色软件开发流水线：architect/qa/dev/双 reviewer，机械判责，语言无关（中文版）"
+    },
+    {
+      "name": "profile-switcher",
+      "source": "./profile-switcher",
+      "description": "Always-on utility: /use-profile binds or switches the per-project profile plugin (enables one, disables siblings, pins its entry agent as the project default)"
     }
   ],
   "metadata": {

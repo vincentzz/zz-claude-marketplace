@@ -1,0 +1,10 @@
+{
+  "name": "profile-switcher",
+  "version": "0.9.5",
+  "description": "Utility: bind or switch profile plugins per project — enables exactly one profile, sets its entry agent as the project's default, then you restart into it. Always-on companion to the profile plugins in this marketplace.",
+  "author": {
+    "name": "Vincent"
+  },
+  "license": "MIT",
+  "defaultEnabled": true
+}

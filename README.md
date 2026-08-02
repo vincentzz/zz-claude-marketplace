@@ -6,8 +6,9 @@ Vincent's [Claude Code](https://code.claude.com) plugin marketplace.
 
 | Plugin | Version | Description |
 |---|---|---|
-| [dev-pipeline](./dev-pipeline/) | 0.9.4 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
-| [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.4 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
+| [dev-pipeline](./dev-pipeline/) | 0.9.5 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
+| [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.5 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
+| [profile-switcher](./profile-switcher/) | 0.9.5 | Always-on utility. `/use-profile` binds or switches the project's profile plugin: enables exactly one, writes explicit `false` for siblings, pins the profile's entry agent as the project default. |
 
 See [dev-pipeline/README.md](./dev-pipeline/README.md) for the full design, workflow, and tuning guide ([中文版](./dev-pipeline-cn/README.md)).
 
@@ -33,13 +34,17 @@ claude plugin marketplace add vincentzz/zz-claude-marketplace
 claude plugin install dev-pipeline@zz-claude-marketplace
 ```
 
-Both plugins ship with `defaultEnabled: false` — installing loads them without enabling them anywhere. Enable per project, then start the pipeline from the project root (must be a git repository):
+Profile plugins ship with `defaultEnabled: false` — installing loads them without enabling them anywhere. Bind one per project with the switcher (the project must be a git repository):
 
 ```bash
 cd <your-project>
-claude plugin enable dev-pipeline@zz-claude-marketplace --scope local
-claude --agent architect --model fable
+claude                        # plain session; profile-switcher is always on
+> /use-profile dev-pipeline   # enable + disable siblings + pin entry agent, all in .claude/settings.local.json
+# exit, then:
+claude                        # starts directly in architect (with its frontmatter model)
 ```
+
+The restart is required: the `agent` settings key is read at startup only. After binding, switching profiles between projects is just `cd`. Manual alternative without the switcher: `claude plugin enable dev-pipeline@zz-claude-marketplace --scope local`, then add `"agent": "dev-pipeline:architect"` to the same `.claude/settings.local.json`.
 
 On first run the architect detects an uninitialized project and walks through `/pipeline-init` — an idempotent setup that installs the protocol shim, interviews you about build conventions, and seeds the task registry. Re-running it on an initialized project is a no-op.
 

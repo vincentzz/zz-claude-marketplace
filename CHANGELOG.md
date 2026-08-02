@@ -1,4 +1,8 @@
 # Changelog
+## 0.9.5
+- New **profile-switcher** plugin (always-on, `defaultEnabled: true`): `/use-profile` discovers installed profile plugins (those declaring `entryAgent` in plugin.json), then binds one to the project via a deterministic script — enables it, writes explicit `false` for sibling profiles, pins `"agent": "<plugin>:<entryAgent>"` in `.claude/settings.local.json`. One restart later, bare `claude` starts in the profile's entry agent. No remote code: everything runs from the locally installed plugin.
+- dev-pipeline / dev-pipeline-cn: declare `entryAgent: architect` in plugin.json.
+
 ## 0.9.4
 - Both plugins now ship `defaultEnabled: false` (Claude Code ≥2.1.154): installing no longer enables them everywhere. Enable per project with `claude plugin enable <name>@zz-claude-marketplace --scope local`. Existing installs are unaffected (an explicit `enabledPlugins: true` written at install time still wins over `defaultEnabled`).
 
