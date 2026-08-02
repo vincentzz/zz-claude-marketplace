@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# 派发门禁。读取 statusline-budget.sh 落盘的 budget.json，机械判定：
-#   exit 0  OK      —— 额度余量与上下文余量均在阈值之上，可派发
-#   exit 1  LOW     —— 任一余量低于阈值，停止派发新任务，等待重置
-#   exit 2  UNKNOWN —— 数据缺失或过期（statusline 未装 / 会话刚启动）
-# 阈值（环境变量可覆盖）：
-#   PIPELINE_MIN_QUOTA_PCT    订阅额度(5h 与 7d 取小)最低余量，默认 20
-#   PIPELINE_MIN_CONTEXT_PCT  architect 上下文最低余量，默认 15
-#   PIPELINE_BUDGET_MAX_AGE   budget.json 最大可信年龄(秒)，默认 900
+# Dispatch gate. Reads the budget.json written to disk by statusline-budget.sh and decides mechanically:
+#   exit 0  OK      -- both quota and context remaining are above threshold, dispatch is allowed
+#   exit 1  LOW     -- either one is below threshold: stop dispatching new tasks and wait for the reset
+#   exit 2  UNKNOWN -- data missing or stale (statusline not installed / session just started)
+# Thresholds (overridable via environment variables):
+#   PIPELINE_MIN_QUOTA_PCT    minimum subscription quota remaining (the lesser of 5h and 7d), default 20
+#   PIPELINE_MIN_CONTEXT_PCT  minimum architect context remaining, default 15
+#   PIPELINE_BUDGET_MAX_AGE   maximum trustworthy age of budget.json in seconds, default 900
 set -euo pipefail
-ROOT="${1:?用法: check-token-budget.sh <project-root>}"
+ROOT="${1:?usage: check-token-budget.sh <project-root>}"
 
 if [ "${PIPELINE_PROVIDER:-}" = "local" ]; then
-  echo "OK 本地模式——订阅配额不适用，门禁短路"
+  echo "OK local mode -- subscription quotas do not apply, gate short-circuited"
   exit 0
 fi
 
@@ -32,12 +32,12 @@ try:
     with open(path, encoding="utf-8") as f:
         b = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError):
-    print("UNKNOWN 未找到可信的 budget.json —— 请确认已按 README 配置 statusline-budget.sh")
+    print("UNKNOWN no trustworthy budget.json found -- check that statusline-budget.sh is configured as per the README")
     sys.exit(2)
 
 age = int(time.time()) - int(b.get("written_at") or 0)
 if age >= max_age:
-    print(f"UNKNOWN budget.json 已过期 {age}s（阈值 {max_age}s）")
+    print(f"UNKNOWN budget.json is {age}s stale (threshold {max_age}s)")
     sys.exit(2)
 
 quotas = [v for v in (b.get("five_hour_left_pct"), b.get("seven_day_left_pct")) if v is not None]
@@ -52,21 +52,21 @@ def fmt_reset(ts):
 parts = []
 if quota_left is not None:
     parts.append(
-        f"额度余 {quota_left:.0f}%（5h:{b.get('five_hour_left_pct')}% 重置 {fmt_reset(b.get('five_hour_resets_at'))}"
-        f" / 7d:{b.get('seven_day_left_pct')}% 重置 {fmt_reset(b.get('seven_day_resets_at'))}）"
+        f"quota {quota_left:.0f}% left (5h:{b.get('five_hour_left_pct')}% resets {fmt_reset(b.get('five_hour_resets_at'))}"
+        f" / 7d:{b.get('seven_day_left_pct')}% resets {fmt_reset(b.get('seven_day_resets_at'))})"
     )
 if ctx_left is not None:
-    parts.append(f"上下文余 {ctx_left:.0f}%")
-detail = " · ".join(parts) if parts else "无可用指标"
+    parts.append(f"context {ctx_left:.0f}% left")
+detail = " · ".join(parts) if parts else "no metrics available"
 
 low = (quota_left is not None and quota_left < min_quota) or (
     ctx_left is not None and ctx_left < min_ctx
 )
 if quota_left is None and ctx_left is None:
-    print(f"UNKNOWN {detail}（API 计费账号无 rate_limits 属正常，可自定义本脚本接入 ccusage 等）")
+    print(f"UNKNOWN {detail} (no rate_limits is normal on API-billed accounts; adapt this script to pull from ccusage or similar)")
     sys.exit(2)
 if low:
-    print(f"LOW {detail} · 阈值 额度≥{min_quota:.0f}% 上下文≥{min_ctx:.0f}%")
+    print(f"LOW {detail} · thresholds quota>={min_quota:.0f}% context>={min_ctx:.0f}%")
     sys.exit(1)
 print(f"OK {detail}")
 PY

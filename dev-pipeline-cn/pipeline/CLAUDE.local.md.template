@@ -1,0 +1,7 @@
+# 流水线装载与项目构建约定（个人文件，永不提交；install.sh 维护）
+@.claude/CLAUDE.md
+
+构建约定（换语言只改本块，机械层语言无关）：
+- 语言基线：Java 17　· 全量测试命令：`mvn -q test`
+- 任务测试选取机制：JUnit5 `@Tag("task-<id>")` + `-Dgroups=task-<id>`
+- 未实现桩：抛 `UnsupportedOperationException("task <id> not implemented")`

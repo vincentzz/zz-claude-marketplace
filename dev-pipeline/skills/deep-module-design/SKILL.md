@@ -1,65 +1,65 @@
 ---
 name: deep-module-design
-description: 深模块接口与责任边界设计纪律。当要设计或改造模块接口、决定 seam 位置、写 spec 第 2 节、评审接口形态，或其他技能需要这套词汇时使用。
+description: Design discipline for deep module interfaces and responsibility boundaries. Use when designing or reworking a module interface, deciding where a seam goes, writing section 2 of a spec, reviewing interface shape, or whenever another skill needs this vocabulary.
 ---
 
-# Deep Module 设计
+# Deep Module Design
 
-设计**深模块**：大量行为藏在小接口之后，立在干净的 seam 上，从接口即可测试。同时，接口必须让**失败责任机械可判**——这是本流水线的判责地基。
+Design **deep modules**: a lot of behavior hidden behind a small interface, standing on a clean seam, testable from the interface alone. At the same time, the interface must make **failure responsibility mechanically decidable** — that is the accountability bedrock of this pipeline.
 
-## 词汇（严格用这套词，不换说法）
+## Vocabulary (use these terms strictly; do not substitute synonyms)
 
-- **模块**：任何有接口与实现之分的东西——函数、类、包皆可，尺度无关。
-- **接口**：调用者正确使用模块所须知道的**一切**——类型签名，加上不变量、调用顺序约束、错误模式、配置要求、性能特征。签名只是接口的一角。
-- **实现**：接口背后的全部代码。
-- **深/浅**：深 = 学一点接口换来大量行为；浅 = 接口几乎和实现一样复杂。
-- **seam**：接口所在的位置，可以在此替换行为而不改此处代码。放哪是独立的设计决策。
-- **adapter**：在 seam 上满足接口的具体实现物。
-- **正交**：两个模块不共享变化原因。一条新需求只应命中一份 spec；想同时改两份 spec 的 2.1，说明边界切在了变化轴上而不是变化轴之间。失败归属表不共享行，是正交在判责面上的机械投影。
-- **可组合**：组合两个模块所需的全部知识 = 双方 2.1 之和。组合点若需要任何一方 2.2 里的知识才能接起来，seam 位置错了。
+- **Module**: anything with a distinction between interface and implementation — function, class, or package alike, scale-independent.
+- **Interface**: **everything** a caller needs to know to use the module correctly — the type signature, plus invariants, call-ordering constraints, error modes, configuration requirements, performance characteristics. The signature is only one corner of the interface.
+- **Implementation**: all the code behind the interface.
+- **Deep/shallow**: deep = learn a little interface, get a lot of behavior; shallow = the interface is nearly as complex as the implementation.
+- **Seam**: the place the interface sits, where behavior can be swapped without changing the code at that point. Where to put it is an independent design decision.
+- **Adapter**: the concrete thing that satisfies the interface at a seam.
+- **Orthogonal**: two modules share no reason to change. One new requirement should hit exactly one spec; wanting to change 2.1 in two specs at once means the boundary was cut along the axis of change instead of between axes of change. Failure-attribution tables sharing no rows is the mechanical projection of orthogonality onto accountability.
+- **Composable**: all the knowledge needed to compose two modules = the sum of both 2.1s. If the composition point needs anything from either side's 2.2 to hook up, the seam is in the wrong place.
 
-## 边界三分法（每个模块边界都由三层构成）
+## The Three-Way Boundary Split (every module boundary has three layers)
 
-1. **必须知道** —— 接口（spec 2.1）：正确使用与验收所需的一切。
-2. **不需要知道** —— 隐藏（spec 2.2）：实现自由度所在。对人类工程师，多读只是浪费。
-3. **不得知道** —— 禁知（spec 2.5，forbidden to know）：用了会污染行为或破坏判责的信息。对 LLM agent，这层**无法用访问控制实现**——要禁的知识多半已在权重里（通行实现、惯用算法）。操作形式是**视同不知**：无合法出处（spec 内可指认的依据）的知识不得参与决策。这是 clean-room 工程的 agent 版：人类清洁室靠雇没见过原码的人，agent 雇不到"不知道令牌桶"的自己，只能以出处纪律模拟无知。审计面因此在产物而非读取日志：测试或实现里出现 spec 推不出的结构、常量、语义，即违反的证据。
+1. **Must know** — the interface (spec 2.1): everything needed to use and accept it correctly.
+2. **Need not know** — hidden (spec 2.2): where implementation freedom lives. For a human engineer, reading more is merely a waste.
+3. **Must not know** — forbidden knowledge (spec 2.5, forbidden to know): information that, if used, pollutes behavior or breaks accountability. For an LLM agent this layer **cannot be enforced by access control** — most of the knowledge to be banned is already in the weights (the standard implementation, the idiomatic algorithm). The operational form is **treated as unknown**: knowledge with no legitimate provenance (a citable basis inside the spec) may not take part in a decision. This is the agent version of clean-room engineering: a human clean room hires people who have never seen the original source; an agent cannot hire a version of itself that "doesn't know about token buckets", so it can only simulate that ignorance with provenance discipline. The audit surface therefore sits in the artifacts, not in a read log: a structure, constant, or semantic in the tests or implementation that cannot be derived from the spec is the evidence of a violation.
 
-设计一个模块 = 同时设计这三层。只画了 2.1/2.2 而没画 2.5 的边界，对 agent 流水线来说只画了一半。
+Designing a module = designing all three layers at once. A boundary that draws 2.1/2.2 but not 2.5 is, for an agent pipeline, only half drawn.
 
-## 原则
+## Principles
 
-- **深度是接口的属性，不是实现的属性。** 实现内部可以再分小件、留内部 seam 供自己的测试用——只要别漏进接口。
-- **删除测试**：想象删掉这个模块。复杂度随之消失 → 它只是转手层；复杂度在 N 个调用点重新长出来 → 它在挣自己的饭钱。
-- **接口即测试面**：调用者与测试走同一个 seam。想绕过接口去测内部，多半是模块形状不对。
-- **一个 adapter 是假想 seam，两个 adapter 才是真 seam。** 没有第二个实现（哪怕是测试假件）就别立 seam。
-- **依赖手工装配、显式传入**：模块收依赖，不造依赖。容器与魔法注入在这条流水线上不存在。
+- **Depth is a property of the interface, not of the implementation.** The implementation may be split into small pieces internally and keep internal seams for its own tests — as long as none of it leaks into the interface.
+- **The deletion test**: imagine deleting this module. Complexity vanishes with it → it was just a pass-through layer; complexity regrows at N call sites → it was earning its keep.
+- **The interface is the test surface**: callers and tests go through the same seam. Wanting to bypass the interface to test internals usually means the module has the wrong shape.
+- **One adapter is a hypothetical seam; two adapters make it a real seam.** Without a second implementation (even a test double), don't erect a seam.
+- **Dependencies are wired by hand and passed explicitly**: a module receives dependencies, it does not construct them. Containers and magic injection do not exist on this pipeline.
 
-## 失败归属表（spec 2.3 的写法）
+## Failure-Attribution Table (how to write spec 2.3)
 
-接口设计没画完失败归属就不算画完。对每一类可能的失败回答四问：
+An interface design isn't finished until failure attribution is drawn. For each class of possible failure, answer four questions:
 
-| 失败类别 | 表现（异常类型/返回值） | 责任方 | 机械判定依据 |
+| Failure class | Manifestation (exception type / return value) | Responsible party | Mechanical decision basis |
 |---|---|---|---|
 
-- **责任方**只有四种取值：调用方（入参/顺序违约）、装配方（配置/依赖违约）、本模块（实现缺陷）、正常业务态（无责任方）。
-- **机械判定依据**必须是程序可断言的信号：异常类型、异常消息里的固定关键词、返回值形态。"看日志分析一下"不是判定依据。
-- 完成判据：任何一次线上失败，拿着这张表能在不读实现的情况下指认责任方；QA 会把这张表逐行变成测试。
+- **Responsible party** takes only four values: caller (argument/ordering breach), assembler (configuration/dependency breach), this module (implementation defect), normal business state (no responsible party).
+- **Mechanical decision basis** must be a signal a program can assert on: exception type, a fixed keyword in the exception message, the shape of the return value. "Go look at the logs" is not a decision basis.
+- Completion test: for any production failure, this table lets you name the responsible party without reading the implementation; QA turns the table into tests row by row.
 
-## 边界判定（grill-me 的功课，不是独立裁决）
+## Boundary Determination (homework for grill-me, not an independent verdict)
 
-涉及新功能时，先机械地做完下面的功课，把结论作为**推荐答案**带进 grill-me 的边界审讯；判定自明（三连测全数无异议且不涉新依赖）则不上桌，spec 变更记录里写"落位自明"即可。
+When new functionality is involved, mechanically finish the homework below first and carry the conclusion into grill-me's boundary interview as a **recommended answer**; if the determination is self-evident (all three tests pass unopposed and no new dependency is involved), it does not go on the table — just write "placement self-evident" in the spec change log.
 
-**第 0 步·依赖优先**（最便宜且可逆，永远先问世界）：派 explore 子代理跑固定清单——① 各依赖当前版本与最新版本；② changelog 在两版本区间内 grep 目标能力关键词；③ 既有 API 面是否已覆盖；④ 若需新引依赖：新增传递依赖数、维护信号（最近发版、bus factor）、消费面占比。报告必须**引用证据**（版本号 + changelog 行/文档链接），无引用的"应该没有"不构成结论。举证责任倒置：依赖已提供仍要自建 = 与生态的 Duplicated Code，理由（license/实测性能/语义差异/供应链）须登记进 spec。
+**Step 0 · Dependencies first** (cheapest and reversible, always ask the world first): dispatch an explore subagent to run a fixed checklist — ① each dependency's current version and latest version; ② grep the changelog between those two versions for keywords of the target capability; ③ whether the existing API surface already covers it; ④ if a new dependency is needed: number of new transitive dependencies, maintenance signals (last release, bus factor), share of the consuming surface. The report must **cite evidence** (version numbers + changelog lines/doc links); an uncited "probably not there" is not a conclusion. The burden of proof is inverted: building it yourself when a dependency already provides it = Duplicated Code against the ecosystem, and the reason (license / measured performance / semantic difference / supply chain) must be registered in the spec.
 
-**落位三连测**（现模块 vs 新模块，逐项对 spec 草稿可观测）：
-- **变化原因测试**：新功能的失败归属行能否放进现有 2.3 表而不新增责任方类别或判定依据类型？要新增 → 独立变化原因 → 新模块。
-- **词汇测试**：能否用现模块 2.1 的既有词汇完整规格化？需引入两三个以上新领域名词 → 另一个模块的故事。
-- **接口增量测试**：并入若迫使既有公开成员加参数或模式开关 → 新模块；反之新模块方案立不出第二个 adapter 且无独立变化原因 → 并入。
-三测冲突以变化原因测试为准；结论与证据入 spec 变更记录——判断可以是人做的，判断的痕迹必须机械可查。
+**The placement triple test** (existing module vs new module, each item observable against the spec draft):
+- **Reason-for-change test**: can the new functionality's failure-attribution rows go into the existing 2.3 table without adding a responsible-party category or a new kind of decision basis? Needs an addition → separate reason to change → new module.
+- **Vocabulary test**: can it be fully specified using the existing vocabulary of the current module's 2.1? Needs more than two or three new domain nouns → it's another module's story.
+- **Interface-increment test**: if merging forces an existing public member to take an extra parameter or a mode switch → new module; conversely, if the new-module option cannot produce a second adapter and has no independent reason to change → merge it in.
+Where the three tests conflict, the reason-for-change test wins; the conclusion and its evidence go into the spec change log — the judgment may be made by a human, but the trace of the judgment must be mechanically inspectable.
 
-## 设计两次
+## Design It Twice
 
-拿不准接口形态时，并行唤起 2–3 个 Explore 子代理，各给同一段需求、要求交回一版**风格上截然不同**的接口草案（例如：命令式 vs 值语义、粗粒度 vs 细粒度）。回收后按深度、失败归属清晰度、seam 位置三项对比，取长合成，再定稿。第一版直觉往往是最浅的那版。
+When you are unsure of the interface shape, invoke 2–3 Explore subagents in parallel, give each the same slice of requirements, and ask each to return an interface draft that is **stylistically radically different** (for example: imperative vs value semantics, coarse-grained vs fine-grained). Compare the returns on three axes — depth, clarity of failure attribution, seam placement — take the best of each, synthesize, then finalize. The first instinct is usually the shallowest version.
 
-<!-- 词汇与原则改编自 mattpocock/skills 的 codebase-design 及其 DESIGN-IT-TWICE（MIT）；
-     失败归属表是本流水线的扩展（面向甩锅编程：让失败责任机械可判）。 -->
+<!-- Vocabulary and principles adapted from codebase-design and its DESIGN-IT-TWICE in mattpocock/skills (MIT);
+     the failure-attribution table is this pipeline's extension (blame-oriented programming: make failure responsibility mechanically decidable). -->

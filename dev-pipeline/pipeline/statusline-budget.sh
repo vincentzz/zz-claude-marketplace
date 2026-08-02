@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# 由 Claude Code 的 statusLine 机制调用：stdin 收到会话 JSON。
-# 职责：1) 把订阅额度(5h/7d)与上下文余量原子写入 <project>/.claude/pipeline/budget.json
-#      2) 打印一行状态（模型 | ctx 余量 | 5h/7d 余量 | 5h 重置时间）
-# 这是 token-budget 门禁的唯一数据来源；不装本脚本则门禁返回 UNKNOWN。
+# Invoked by Claude Code's statusLine mechanism: the session JSON arrives on stdin.
+# Responsibilities: 1) atomically write the subscription quota (5h/7d) and the remaining context
+#                      to <project>/.claude/pipeline/budget.json
+#                   2) print one status line (model | ctx remaining | 5h/7d remaining | 5h reset time)
+# This is the only data source for the token-budget gate; without this script the gate returns UNKNOWN.
 set -euo pipefail
 
 STATUSLINE_JSON="$(cat)" python3 - <<'PY'
@@ -54,8 +55,8 @@ def pct(v):
 
 reset = ""
 if h5_reset:
-    reset = " · 5h重置 " + dt.datetime.fromtimestamp(h5_reset).strftime("%H:%M")
+    reset = " · 5h reset " + dt.datetime.fromtimestamp(h5_reset).strftime("%H:%M")
 
 model = budget["model"] or "?"
-print(f"[{model}] ctx余{pct(ctx_left)} | 额度 5h余{pct(h5_left)} 7d余{pct(d7_left)}{reset}")
+print(f"[{model}] ctx {pct(ctx_left)} left | quota 5h {pct(h5_left)} 7d {pct(d7_left)}{reset}")
 PY

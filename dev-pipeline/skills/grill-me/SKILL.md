@@ -1,32 +1,32 @@
 ---
 name: grill-me
-description: 需求对齐审讯。当用户提出新需求、要开新任务、说"对齐一下 / grill me"，或 architect 需要在写 spec 前消除歧义时使用。产出物是"可以落笔写 spec"的共同理解。
+description: Requirements-alignment interview. Use when the user raises a new requirement, wants to open a new task, says "let's align / grill me", or when architect needs to eliminate ambiguity before writing a spec. The deliverable is a shared understanding solid enough to start writing the spec.
 ---
 
-对用户展开一场不留死角的审讯，直到你们对这个需求达成共同理解。沿决策树逐支下探，把决策之间的依赖一个一个解开。
+Interrogate the user with no blind spots left, until the two of you share one understanding of the requirement. Walk down the decision tree branch by branch, untangling the dependencies between decisions one at a time.
 
-规则：
+Rules:
 
-- **一次只问一个问题**，等到回答再问下一个。一口气抛一串问题只会得到一串敷衍。
-- 每个问题都**附上你的推荐答案**及一句理由，让用户可以只回"是/否/改成 X"。
-- **事实自己查，决策交给用户。** 能从代码库、文件系统、工具里查到的事实（现有接口长什么样、当前用了什么库），先查再问；查不到的、以及一切取舍性的决策，逐条摆到用户面前等答复。
-- 用户的每个回答都可能长出新的分支——追下去，直到没有未决分支。
+- **Ask one question at a time**, and wait for the answer before the next one. Dumping a string of questions at once only earns a string of perfunctory answers.
+- Every question comes with **your recommended answer** plus a one-line rationale, so the user can just reply "yes / no / make it X".
+- **Look up facts yourself; leave decisions to the user.** Anything findable in the codebase, the filesystem, or your tools (what the existing interface looks like, which library is in use) — look it up before asking; whatever you cannot find, plus every trade-off decision, goes to the user one item at a time and waits for an answer.
+- Every answer from the user can sprout new branches — chase them until no branch is left open.
 
-## 边界审讯（涉及新功能时必问）
+## Boundary Interview (mandatory whenever new functionality is involved)
 
-先按 `/deep-module-design` 的「边界判定」做完功课（依赖探索 + 落位三连测），再把三类**决策**逐题摆给用户——每题附证据与推荐答案：
+First finish the homework in `/deep-module-design`'s "Boundary Determination" (dependency exploration + the placement triple test), then put all three classes of **decision** to the user one question at a time — each with evidence and a recommended answer:
 
-1. **依赖取舍**："能力 X 我查了：<证据引用>。建议 <升级到 vN / 自建 / 新引 Y>，因为 <一句理由>。拍板？"——"没准换个依赖版本就能解决"必须在此被证实或证伪，不允许默认自建。
-2. **落位**："三连测结果 <摘要>，建议 <并入 M / 开新模块 N>。拍板？"——三测冲突或自明的除外（自明不上桌）。
-3. **变化分布校准**："我猜未来可能的变化是这 N 条 <清单>，各会动哪些模块 <冲击矩阵草稿>。哪些真会发生？漏了什么？"——**用户是变化分布的最佳可用先知**，正交性押注在校准后的分布上，而不是 architect 的先验想象上。
+1. **Dependency trade-off**: "I looked into capability X: <evidence citation>. I suggest <upgrade to vN / build it ourselves / pull in Y>, because <one-line rationale>. Your call?" — "maybe a different dependency version already solves it" must be confirmed or refuted right here; defaulting to building it yourself is not allowed.
+2. **Placement**: "Triple-test result <summary>, I suggest <merge into M / open new module N>. Your call?" — except when the three tests conflict or the answer is self-evident (self-evident does not go on the table).
+3. **Change-distribution calibration**: "My guess at the plausible future changes is these N <list>, and each would touch these modules <draft impact matrix>. Which will actually happen? What did I miss?" — **the user is the best available oracle for the distribution of change**, and the orthogonality bet rides on the calibrated distribution, not on architect's prior imagination.
 
-完成判据（四条同时满足才算对齐完成，之前不得动手做任何事）：
+Completion tests (alignment is complete only when all four hold at once; do nothing whatsoever before that):
 
-1. 能写出 spec 的「背景与目标」而不带任何"待定/大概/可能"。
-2. 能列出 spec 的「非目标」——用户明确说了不做的事。
-3. 每条已决的取舍都能指出是谁在哪个问题下拍的板。
-4. 涉新功能时：依赖取舍与落位有用户拍板记录，变化冲击矩阵经用户修正（或落位自明已记录）。
+1. You can write the spec's "Background & Goals" with no "TBD / roughly / possibly" anywhere in it.
+2. You can list the spec's "Non-Goals" — the things the user explicitly said are out of scope.
+3. For every settled trade-off you can point to who made the call, under which question.
+4. When new functionality is involved: the dependency trade-off and the placement have a recorded user decision, and the change-impact matrix has been corrected by the user (or "placement self-evident" has been recorded).
 
-对齐完成后向用户复述一段结论并取得确认，再进入设计与写 spec。
+Once alignment is complete, restate the conclusion back to the user and get confirmation before moving on to design and writing the spec.
 
-<!-- 改编自 mattpocock/skills 的 grilling（MIT），面向本流水线的 spec 产出做了完成判据强化。 -->
+<!-- Adapted from grilling in mattpocock/skills (MIT), with the completion tests hardened for this pipeline's spec output. -->

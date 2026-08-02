@@ -1,38 +1,38 @@
 ---
 name: mechanical-acceptance
-description: 机械可判定验收的定义、acceptance.sh 脚本契约、红态规则与测试质量纪律。qa 落骨架、写验收测试、写 acceptance.sh 时使用。
+description: The definition of mechanically decidable acceptance, the acceptance.sh script contract, the red-state rule, and test quality discipline. Use when qa lays down the skeleton, writes acceptance tests, or writes acceptance.sh.
 ---
 
-# 机械可判定验收
+# Mechanically Decidable Acceptance
 
-**定义**：一条无交互命令，退出码即判定——exit 0 ⟺ 通过。不需要任何人读输出下结论。凡是要"看一眼确认"的验收条件都不合格，打回 spec 重写。
+**Definition**: one non-interactive command whose exit code is the verdict — exit 0 ⟺ pass. Nobody has to read the output to reach a conclusion. Any acceptance criterion that requires "take a look and confirm" is unfit; send it back for a spec rewrite.
 
-## acceptance.sh 契约
+## acceptance.sh Contract
 
-路径 `tasks/specs/<id>/acceptance.sh`，由 qa 交付，是该任务唯一验收入口：
+Path `tasks/specs/<id>/acceptance.sh`, delivered by qa, the sole acceptance entry point for that task:
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-CHECKOUT="${1:?用法: acceptance.sh <checkout-dir>}"
+CHECKOUT="${1:?usage: acceptance.sh <checkout-dir>}"
 cd "$CHECKOUT"
 mvn -q test -Dgroups=task-<id>
 ```
 
-- 幂等、无交互、不依赖调用者 cwd、对检出目录之外只读。
-- dev 在工作树上跑它，architect 合并后在主检出上跑它（`taskctl verify`）——同一脚本两处判定，结论必须一致。
-- 一个任务的全部 AC 收敛为一条命令。这要求语言生态提供**按任务选取测试**的机制（构建约定（项目垫片 CLAUDE.local.md）所记）：Java = JUnit5 `@Tag` + `-Dgroups`；Rust = `cargo test task_<id>`（测试名前缀）；pytest = `-m task_<id>`；Haskell tasty = `--pattern`；通用兜底 = 按文件/目录命名圈定。选取机制是 acceptance.sh 的内部细节——脚本即语言接缝。
+- Idempotent, non-interactive, independent of the caller's cwd, read-only outside the checkout directory.
+- dev runs it on the worktree; architect runs it on the main checkout after merging (`taskctl verify`) — the same script decides in both places, and the conclusions must agree.
+- All ACs of a task converge into one command. This requires the language ecosystem to provide a **per-task test selection** mechanism (recorded in the build conventions (project shim CLAUDE.local.md)): Java = JUnit5 `@Tag` + `-Dgroups`; Rust = `cargo test task_<id>` (test-name prefix); pytest = `-m task_<id>`; Haskell tasty = `--pattern`; universal fallback = scoping by file/directory naming. The selection mechanism is an internal detail of acceptance.sh — the script is the language seam.
 
-## 红态规则（qa 交付时的合格线）
+## Red-State Rule (qa's delivery bar)
 
-- **构建必须过，红必须红在运行期**：断言失败或未实现桩（Java 的 `UnsupportedOperationException`、Rust 的 `todo!()`、Haskell 的 `error`、Python 的 `NotImplementedError` 等，见 构建约定（项目垫片 CLAUDE.local.md））。构建失败（编译型语言的编译、动态语言的加载/导入）不是红态，是骨架没落对——按 spec 2.1 修骨架，不是改 spec、更不是先写实现。
-- 红的位置要正确：每条 AC 的测试红在它自己断言的行为上。一个 AC 因为前置 AC 挂掉而连坐变红，说明测试之间有隐藏依赖，拆开。
+- **The build must pass, and red must be red at runtime**: an assertion failure or an unimplemented stub (Java's `UnsupportedOperationException`, Rust's `todo!()`, Haskell's `error`, Python's `NotImplementedError`, etc.; see the build conventions (project shim CLAUDE.local.md)). A build failure (compilation in a compiled language, load/import in a dynamic one) is not a red state — it means the skeleton was laid down wrong: fix the skeleton per spec 2.1, do not change the spec, and certainly do not start writing the implementation.
+- Red must be in the right place: each AC's test goes red on the behavior it itself asserts. An AC that turns red as collateral damage from an earlier AC failing means the tests have a hidden dependency — split them apart.
 
-## 测试质量（每条测试逐一自检）
+## Test Quality (self-check every single test)
 
-- **测在接口上**：只经 spec 2.1 的公开接口驱动与观察。测私有成员、mock 内部协作者、绕道数据库侧门验证——都是实现耦合，重构一动测试就碎。判据：改实现不改行为，测试不该红。
-- **期望值来自独立真源**：spec 的字面例、手算值、失败归属表的固定关键词。用被测代码同款算法现推期望值是套套逻辑——它构造性地永真，永远抓不到 bug。独立真源即禁知的特例：期望值旁注出处（spec 节号 / AC 编号 / 手算过程），出处注释是 reviewer 的查验对象。
-- **失败归属逐行成测**：spec 2.3 的每一行至少一个测试，断言异常类型与机械判定依据（如消息含参数名），让判责本身被验收。
-- **一条 AC 一组测试**，命名读起来像 spec 复述（`refillSemantics`、`failureAttribution`）。不为想象中的行为囤测试——spec 没写的行为没有测试资格。
+- **Test at the interface**: drive and observe only through spec 2.1's public interface. Testing private members, mocking internal collaborators, verifying through a side door into the database — all implementation coupling, and the tests shatter the moment you refactor. Criterion: change the implementation without changing behavior, and the tests must not go red.
+- **Expected values come from an independent source of truth**: the spec's literal examples, hand-computed values, the fixed keywords from the failure-attribution table. Deriving the expected value on the fly with the same algorithm as the code under test is a tautology — it is constructively always true and will never catch a bug. An independent source of truth is a special case of forbidden knowledge: annotate the expected value with its provenance (spec section number / AC number / the hand computation), and that provenance comment is what the reviewer checks.
+- **Failure attribution becomes tests row by row**: at least one test per row of spec 2.3, asserting the exception type and the mechanical decision basis (e.g. the message contains the parameter name), so accountability itself gets accepted.
+- **One AC, one group of tests**, named so they read like a restatement of the spec (`refillSemantics`, `failureAttribution`). Do not stockpile tests for imagined behavior — behavior the spec does not state is not eligible for a test.
 
-<!-- 测试质量纪律精编自 mattpocock/skills 的 tdd（MIT）：实现耦合、套套逻辑、水平切片三反模式。 -->
+<!-- Test quality discipline distilled from tdd in mattpocock/skills (MIT): the implementation-coupling, tautology, and horizontal-slice anti-patterns. -->

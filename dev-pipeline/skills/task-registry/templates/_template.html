@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,7 +10,7 @@
     :root { --bg:#14161a; --ink:#d8dce2; --line:#33383f; --dim:#8b929c; --mark:#e5b567; }
   }
   body { margin:2.5rem auto; max-width:56rem; padding:0 1.25rem; background:var(--bg); color:var(--ink);
-         font:15px/1.7 "IBM Plex Mono","Sarasa Mono SC",ui-monospace,monospace; }
+         font:15px/1.7 "IBM Plex Mono",ui-monospace,monospace; }
   h1 { font-size:1.15rem; font-weight:600; letter-spacing:.04em; }
   h2 { font-size:.95rem; font-weight:600; margin-top:2.2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
   h3 { font-size:.85rem; font-weight:600; color:var(--dim); }
@@ -27,67 +27,76 @@
 <body>
 
 <h1>{{TASK_ID}} · {{TITLE}}</h1>
-<p class="meta">创建 {{DATE}} · <a href="../task.html">← 任务总表</a> · 资源目录 <code>specs/{{TASK_ID}}/</code></p>
+<p class="meta">Created {{DATE}} · <a href="../task.html">← Task Registry</a> · resource directory <code>specs/{{TASK_ID}}/</code></p>
 
-<h2>1 · 背景与目标</h2>
-<p><!-- grill-me 对齐后的结论：要解决什么问题、为谁解决、做到什么程度算完。
-     不确定的分支不允许留在这里——留下即代表已决。 --></p>
+<h2>1 · Background &amp; Goals</h2>
+<p><!-- The conclusion reached after grill-me alignment: which problem is being solved, for whom,
+     and how far is far enough to call it done. Undecided branches may not stay here —
+     whatever is left here counts as decided. --></p>
 
-<h2>2 · Deep Module 设计</h2>
+<h2>2 · Deep Module Design</h2>
 
-<h3>2.1 接口（调用者须知的全部）</h3>
-<pre><code><!-- 可编译级完整的签名 + 契约注释：参数约束、返回语义、抛出的异常类型、
-     调用顺序约束、线程语义、性能特征（含热路径标注——它切换 dev 的风格优先级，
-     重要性能约束应配机械 AC）。QA 将以此落骨架，dev 不得增删公开成员。 --></code></pre>
+<h3>2.1 Interface (everything the caller needs to know)</h3>
+<pre><code><!-- Compilable-grade complete signatures + contract comments: parameter constraints,
+     return semantics, exception types thrown, call-order constraints, thread semantics,
+     performance characteristics (including hot-path annotations — they switch dev's style
+     priorities, and an important performance constraint should come with a mechanical AC).
+     QA builds the skeleton from this; dev must not add or remove public members. --></code></pre>
 
-<h3>2.2 隐藏的复杂度</h3>
-<p><!-- 接口背后吞掉了什么：算法、状态、边界情况。这些对调用者不可见。
-     只写"藏了什么"（存在性），不写"怎么做"（方案）——本节 qa 也会读到。
-     实现提示如果想给 dev，写进 specs/{{TASK_ID}}/architect/dev-hints.md 并列入下方 qa 的禁知清单。 --></p>
+<h3>2.2 Hidden Complexity</h3>
+<p><!-- What the interface swallows behind it: algorithms, state, edge cases. None of it is
+     visible to the caller. Write only "what is hidden" (existence), not "how it is done"
+     (the approach) — qa reads this section too.
+     If you want to pass implementation hints to dev, put them in
+     specs/{{TASK_ID}}/architect/dev-hints.md and list that in qa's forbidden-knowledge table below. --></p>
 
-<h3>2.3 责任边界（失败归属表）</h3>
+<h3>2.3 Responsibility Boundary (failure-attribution table)</h3>
 <table>
-<thead><tr><th>失败类别</th><th>表现（异常/返回）</th><th>责任方</th><th>机械判定依据</th></tr></thead>
+<thead><tr><th>Failure class</th><th>Manifestation (exception/return)</th><th>Accountable party</th><th>Mechanical basis for the verdict</th></tr></thead>
 <tbody>
-<tr><td><!-- 如：入参非法 --></td><td><!-- 如：IllegalArgumentException --></td><td><!-- 调用方 --></td><td><!-- 如：消息含参数名 --></td></tr>
+<tr><td><!-- e.g. invalid argument --></td><td><!-- e.g. IllegalArgumentException --></td><td><!-- caller --></td><td><!-- e.g. the message names the parameter --></td></tr>
 </tbody>
 </table>
 
-<h3>2.4 Seam 位置</h3>
-<p><!-- 接口立在哪一层、为什么立在这；依赖以何种方式注入（手工装配）。 --></p>
+<h3>2.4 Seam Placement</h3>
+<p><!-- Which layer the interface stands at and why it stands there; how dependencies are injected (manual wiring). --></p>
 
-<h3>2.5 禁知边界（forbidden to know）</h3>
-<p>禁知 ≠ 禁读：所列信息即使在先验里（通行实现、惯用算法）也<mark>视同不知</mark>，
-不得参与任何决策；判定只认「合法来源」列。CLAUDE.md 的禁知纪律默认生效，本节只列<em>本任务增量</em>；
-无增量则写"仅基线"。需要禁知信息才能完成工作 = spec 有缺陷，按「越界即停」上报，不得自行解禁。</p>
+<h3>2.5 Forbidden-Knowledge Boundary (forbidden to know)</h3>
+<p>Forbidden knowledge ≠ read ban: the listed information is <mark>treated as unknown</mark> even when it
+sits in your priors (common implementations, idiomatic algorithms), and must not take part in any decision;
+verdicts recognize only the "legitimate source" column. The forbidden-knowledge discipline in CLAUDE.md
+applies by default, and this section lists only the <em>increment for this task</em>;
+with no increment, write "baseline only". Needing forbidden knowledge to finish the work = a defective spec:
+escalate per "stop on overstep"; never lift the ban on your own.</p>
 <table>
-<thead><tr><th>角色</th><th>视同不知的信息</th><th>理由</th><th>判定的合法来源</th></tr></thead>
+<thead><tr><th>Role</th><th>Information treated as unknown</th><th>Rationale</th><th>Legitimate source for the verdict</th></tr></thead>
 <tbody>
-<tr><td><!-- qa / dev / 双方 --></td><td><!-- 信息或路径；含先验中的通行做法 --></td><td><!-- 如：防测试向做法收敛 --></td><td><!-- 如：仅 2.1/2.3/3 及其字面例 --></td></tr>
+<tr><td><!-- qa / dev / both --></td><td><!-- information or path; includes common practice from priors --></td><td><!-- e.g. keeps the tests from converging on one approach --></td><td><!-- e.g. only 2.1/2.3/3 and their literal examples --></td></tr>
 </tbody>
 </table>
 
-<h2>3 · 验收条件（机械可判定）</h2>
+<h2>3 · Acceptance Criteria (mechanically decidable)</h2>
 <table>
-<thead><tr><th>编号</th><th>行为描述</th><th>判定命令</th><th>通过标准</th><th>承载测试</th></tr></thead>
+<thead><tr><th>ID</th><th>Behavior</th><th>Decision command</th><th>Pass criterion</th><th>Carrying test</th></tr></thead>
 <tbody>
-<tr><td>AC-1</td><td></td><td><code></code></td><td>exit 0</td><td><!-- 类#方法，由 QA 回填 --></td></tr>
+<tr><td>AC-1</td><td></td><td><code></code></td><td>exit 0</td><td><!-- Class#method, filled in by QA --></td></tr>
 </tbody>
 </table>
-<p>唯一验收入口：<code>bash tasks/specs/{{TASK_ID}}/acceptance.sh &lt;checkout-dir&gt;</code>，
-<mark>exit 0 ⟺ 全部 AC 通过</mark>。脚本由 QA 交付。</p>
+<p>The only acceptance entry point: <code>bash tasks/specs/{{TASK_ID}}/acceptance.sh &lt;checkout-dir&gt;</code>,
+<mark>exit 0 ⟺ all ACs pass</mark>. The script is delivered by QA.</p>
 
-<h2>4 · 非目标</h2>
-<p><!-- 明确不做的事，防止 dev 越权发挥（Speculative Generality 在此处被拒绝）。 --></p>
+<h2>4 · Non-Goals</h2>
+<p><!-- What is explicitly out of scope, to keep dev from improvising beyond mandate
+     (Speculative Generality is rejected here). --></p>
 
-<h2>5 · 资源</h2>
-<p><!-- 指向 specs/{{TASK_ID}}/ 下的图片、样例数据等；没有则写"无"。 --></p>
+<h2>5 · Resources</h2>
+<p><!-- Point at images, sample data, etc. under specs/{{TASK_ID}}/; write "none" if there are none. --></p>
 
-<h2>6 · 变更记录</h2>
+<h2>6 · Change Log</h2>
 <table>
-<thead><tr><th>日期</th><th>变更</th><th>责任方</th></tr></thead>
+<thead><tr><th>Date</th><th>Change</th><th>Accountable party</th></tr></thead>
 <tbody>
-<tr><td>{{DATE}}</td><td>创建</td><td>architect</td></tr>
+<tr><td>{{DATE}}</td><td>Created</td><td>architect</td></tr>
 </tbody>
 </table>
 

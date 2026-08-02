@@ -1,28 +1,31 @@
 #!/usr/bin/env python3
-"""taskctl — tasks/task.html 的唯一合法编辑器。
+"""taskctl — the sole legal editor of tasks/task.html.
 
-设计目标：机械可判定。任何 agent 对任务注册表的读写都必须经过本脚本，
-使得"谁在什么时候把状态改成了什么"可以从 git log 与本脚本的契约中
-机械地还原，失败责任可判定。
+Design goal: mechanically decidable. Every agent read or write against the task
+registry must go through this script, so that "who changed which status to what,
+and when" can be reconstructed mechanically from git log plus this script's
+contract, and failure accountability stays decidable.
 
-行契约（task.html 的 <tbody id="tasks"> 内，每个任务恰好一行）：
+Row contract (inside task.html's <tbody id="tasks">, exactly one row per task):
 
   <tr data-task-id="0001" data-test="done" data-dev="in-progress">...</tr>
 
-解析只信任 data-* 属性与 <a> 的标题文本；写入时整行重新渲染。
-手改行格式即违反契约，本脚本会以明确报错拒绝工作。
+Parsing trusts only the data-* attributes and the <a> title text; a write
+re-renders the whole row. Hand-editing a row's format violates the contract and
+this script refuses to work, with an explicit error.
 
-门禁（set 内建，--force 越过需在 notes 说明理由）：
-  1. Test=done 之前 Dev 不得离开 not-started
-  2. set <id> test|dev done 要求对应 reviewer 的评审闭环：
-     最新 review-N.md 无 [BLOCKING]、含「结论：无阻塞项」结论行、N ≤ 2
-     （同 review-check 子命令）
+Gates (built into set; --force to bypass, with the reason recorded in notes):
+  1. Dev must not leave not-started before Test=done
+  2. set <id> test|dev done requires review closure from the matching reviewer:
+     the latest review-N.md has no [BLOCKING], carries a
+     "Conclusion: no blocking items" conclusion line, and N <= 2
+     (same as the review-check subcommand)
 
-退出码：
-  0  成功（verify 时表示验收全绿）
-  2  用法错误 / 契约违反 / 前置条件不满足
-  3  next 无可派发任务
-  其余  verify 透传 acceptance.sh 的退出码
+Exit codes:
+  0  success (for verify: acceptance is all green)
+  2  usage error / contract violation / precondition not met
+  3  next has no dispatchable task
+  other  verify passes through acceptance.sh's exit code
 """
 
 import argparse
@@ -53,7 +56,7 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "
 
 
 def resolve_template(root: str, name: str) -> str:
-    """模板解析：项目内优先（可逐项目覆盖），skill 自带兜底（用户级安装的自播种源）。"""
+    """Template resolution: in-project first (per-project override), skill-bundled as fallback (the self-seeding source for user-level installs)."""
     proj = os.path.join(root, "tasks", "specs", name) if name != "task.html" \
         else os.path.join(root, "tasks", name)
     if os.path.exists(proj):
@@ -61,18 +64,18 @@ def resolve_template(root: str, name: str) -> str:
     bundled = os.path.normpath(os.path.join(TEMPLATES_DIR, name))
     if os.path.exists(bundled):
         return bundled
-    die(f"模板缺失：项目内与 skill 自带目录均无 {name}")
+    die(f"template missing: neither the project nor the skill's bundled directory has {name}")
 
 
 def ensure_seeded(root: str):
-    """tasks/task.html 缺失则自播种（用户级安装下项目零拷贝即可用）。"""
+    """Self-seed tasks/task.html when missing (so a user-level install works with zero copies into the project)."""
     dst = os.path.join(root, "tasks", "task.html")
     if not os.path.exists(dst):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         src = os.path.normpath(os.path.join(TEMPLATES_DIR, "task.html"))
         with open(src, encoding="utf-8") as f, open(dst, "w", encoding="utf-8") as g:
             g.write(f.read())
-        print(f"taskctl: 已自播种 {dst}", file=sys.stderr)
+        print(f"taskctl: self-seeded {dst}", file=sys.stderr)
 
 
 def die(msg: str, code: int = 2):
@@ -80,17 +83,20 @@ def die(msg: str, code: int = 2):
     sys.exit(code)
 
 
-# harness 状态永不入团队库（个人工装契约）。位置不换目录，靠机制守护：
-# 每次运行时确保 .git/info/exclude（个人、非共享）含以下排除项。
+# harness state never enters the team repo (personal-tooling contract). The location
+# stays where it is, guarded by mechanism: every run ensures .git/info/exclude
+# (personal, non-shared) contains the excludes below.
 PERSONAL_EXCLUDES = ("tasks/", ".worktrees/", ".claude/", "CLAUDE.local.md")
 
 
 def ensure_personal_exclude(root: str):
-    """幂等地把 harness 排除项写入 .git/info/exclude。
+    """Idempotently write the harness excludes into .git/info/exclude.
 
-    - 已被 git 跟踪的路径跳过（solo 仓库有意入库的场景不受干扰；
-      对已跟踪文件 exclude 本就无效，跳过只为不误导）。
-    - 任何失败静默降级为提示——本函数是防护网，不是功能依赖。
+    - Paths already tracked by git are skipped (a solo repo that deliberately
+      commits them is left undisturbed; exclude is a no-op for tracked files
+      anyway, so skipping merely avoids misleading output).
+    - Any failure degrades silently into a notice — this function is a safety
+      net, not a functional dependency.
     """
     try:
         git_info = os.path.join(root, ".git", "info")
@@ -118,19 +124,20 @@ def ensure_personal_exclude(root: str):
                     capture_output=True, text=True,
                 )
                 if not others.stdout.strip():
-                    continue  # 完整入库（solo 模式），尊重现状
-                # 部分跟踪（如团队提交了 .claude/settings.json）：仍写排除——
-                # ignore 规则不影响已跟踪文件，只为遮蔽我们的个人增量
+                    continue  # fully committed (solo mode), respect the status quo
+                # partially tracked (e.g. the team committed .claude/settings.json): still
+                # write the exclude — ignore rules do not affect tracked files, this only
+                # masks our personal additions
             added.append(entry)
         if added:
             with open(exclude_path, "a", encoding="utf-8") as f:
                 if existing and not existing.endswith("\n"):
                     f.write("\n")
-                f.write("# taskctl: harness 个人工装，永不提交\n")
+                f.write("# taskctl: harness personal tooling, never committed\n")
                 f.writelines(e + "\n" for e in added)
-            print(f"taskctl: 已写入 .git/info/exclude 排除项: {' '.join(added)}", file=sys.stderr)
+            print(f"taskctl: wrote excludes into .git/info/exclude: {' '.join(added)}", file=sys.stderr)
     except Exception as e:  # noqa: BLE001
-        print(f"taskctl: 排除守护跳过（{e}）", file=sys.stderr)
+        print(f"taskctl: exclude guard skipped ({e})", file=sys.stderr)
 
 
 def render_row(task_id: str, test: str, dev: str, title: str) -> str:
@@ -144,13 +151,13 @@ def render_row(task_id: str, test: str, dev: str, title: str) -> str:
 
 
 class Registry:
-    """task.html 的读-改-写。持文件锁，写入原子替换。"""
+    """Read-modify-write of task.html. Holds a file lock; writes replace atomically."""
 
     def __init__(self, root: str):
         self.root = os.path.abspath(root)
         self.path = os.path.join(self.root, "tasks", "task.html")
         if not os.path.isfile(self.path):
-            die(f"找不到 {self.path}（--root 指向项目根了吗？）")
+            die(f"{self.path} not found (does --root point at the project root?)")
         self.lock_path = self.path + ".lock"
 
     def __enter__(self):
@@ -158,11 +165,11 @@ class Registry:
         fcntl.flock(self._lock, fcntl.LOCK_EX)
         with open(self.path, encoding="utf-8") as f:
             lines = f.read().splitlines(keepends=True)
-        # 锚定契约：TBODY_OPEN 与 TBODY_CLOSE 必须各自独占一行（允许首尾空白）
+        # Anchor contract: TBODY_OPEN and TBODY_CLOSE must each occupy a line of their own (surrounding whitespace allowed)
         opens = [i for i, l in enumerate(lines) if l.strip() == TBODY_OPEN]
         closes = [i for i, l in enumerate(lines) if l.strip() == TBODY_CLOSE]
         if len(opens) != 1 or len(closes) != 1 or closes[0] < opens[0]:
-            die(f"{self.path} 缺少独占一行的 {TBODY_OPEN} … {TBODY_CLOSE} 结构")
+            die(f"{self.path} lacks a {TBODY_OPEN} … {TBODY_CLOSE} structure on lines of their own")
         self.head = "".join(lines[: opens[0]])
         self.tail = "".join(lines[closes[0] + 1 :])
         self.rows = []  # [(id, test, dev, title)]
@@ -172,11 +179,11 @@ class Registry:
                 continue
             m = ROW_RE.match(line)
             if not m:
-                die(f"行契约违反（请勿手改 task.html 的行）：{line[:120]}")
+                die(f"row contract violated (do not hand-edit task.html rows): {line[:120]}")
             self.rows.append((m.group(1), m.group(2), m.group(3), html.unescape(m.group(4))))
         ids = [r[0] for r in self.rows]
         if len(ids) != len(set(ids)):
-            die("task.html 中存在重复 taskId")
+            die("duplicate taskId in task.html")
         return self
 
     def __exit__(self, exc_type, exc, tb):
@@ -196,7 +203,7 @@ class Registry:
         for i, r in enumerate(self.rows):
             if r[0] == task_id:
                 return i
-        die(f"任务 {task_id} 不存在")
+        die(f"task {task_id} does not exist")
 
 
 def cmd_list(reg: Registry, _args):
@@ -211,29 +218,29 @@ def cmd_show(reg: Registry, args):
 
 
 def cmd_next(reg: Registry, args):
-    for tid, test, dev, _title in reg.rows:  # 行序即优先级，自上而下
+    for tid, test, dev, _title in reg.rows:  # row order is priority, top to bottom
         if args.stage == "test" and test == "not-started":
             print(tid)
             return
         if args.stage == "dev" and test == "done" and dev == "not-started":
             print(tid)
             return
-    die(f"没有可派发的 {args.stage} 任务", 3)
+    die(f"no dispatchable {args.stage} task", 3)
 
 
 MAX_REVIEW_ROUNDS = 2
 REVIEWER_OF = {"test": "qa-reviewer", "dev": "dev-reviewer"}
-CONCLUSION_RE = re.compile(r"^结论[：:]\s*无阻塞项")
+CONCLUSION_RE = re.compile(r"^Conclusion:\s*no blocking items")
 
 
 def review_check(root: str, task_id: str, lane: str):
-    """机械校验评审闭环。返回 (ok, 说明)。
+    """Mechanically verify review closure. Returns (ok, explanation).
 
-    通过条件（对 tasks/specs/<id>/<reviewer>/ 下最新的 review-N.md）：
-      1. 至少存在一份 review-N.md
-      2. 最大轮数 N ≤ MAX_REVIEW_ROUNDS
-      3. 最新一份内不含任何 [BLOCKING] 行
-      4. 最新一份内存在以「结论：无阻塞项」起头的结论行
+    Pass conditions (against the latest review-N.md under tasks/specs/<id>/<reviewer>/):
+      1. at least one review-N.md exists
+      2. the highest round N <= MAX_REVIEW_ROUNDS
+      3. the latest one contains no [BLOCKING] line
+      4. the latest one carries a conclusion line starting with "Conclusion: no blocking items"
     """
     reviewer = REVIEWER_OF[lane]
     rdir = os.path.join(os.path.abspath(root), "tasks", "specs", task_id, reviewer)
@@ -244,24 +251,24 @@ def review_check(root: str, task_id: str, lane: str):
             if m:
                 rounds[int(m.group(1))] = os.path.join(rdir, name)
     if not rounds:
-        return False, f"未找到 {reviewer} 的评审文件（{rdir}/review-N.md）"
+        return False, f"no review file found for {reviewer} ({rdir}/review-N.md)"
     latest_n = max(rounds)
     if latest_n > MAX_REVIEW_ROUNDS:
-        return False, f"评审轮数 {latest_n} 超过上限 {MAX_REVIEW_ROUNDS}（review-{latest_n}.md）"
+        return False, f"review round {latest_n} exceeds the limit of {MAX_REVIEW_ROUNDS} (review-{latest_n}.md)"
     with open(rounds[latest_n], encoding="utf-8") as f:
         lines = f.read().splitlines()
     blocking = sum(1 for l in lines if l.lstrip().startswith("[BLOCKING]"))
     if blocking:
-        return False, f"最新评审 review-{latest_n}.md 仍含 {blocking} 个 [BLOCKING] 项"
+        return False, f"the latest review review-{latest_n}.md still carries {blocking} [BLOCKING] item(s)"
     if not any(CONCLUSION_RE.match(l.strip()) for l in lines):
-        return False, f"最新评审 review-{latest_n}.md 缺少「结论：无阻塞项」结论行"
-    return True, f"{reviewer} review-{latest_n}.md 闭环（无 [BLOCKING]，结论行合格）"
+        return False, f"the latest review review-{latest_n}.md lacks a \"Conclusion: no blocking items\" conclusion line"
+    return True, f"{reviewer} review-{latest_n}.md closed (no [BLOCKING], conclusion line valid)"
 
 
 def cmd_review_check(root: str, args):
     ok, msg = review_check(root, args.id, args.lane)
     if not ok:
-        die(f"评审未闭环：{msg}")
+        die(f"review not closed: {msg}")
     print(f"OK {args.id} {msg}")
 
 
@@ -269,11 +276,11 @@ def cmd_set(reg: Registry, args):
     i = reg.index_of(args.id)
     tid, test, dev, title = reg.rows[i]
     if args.field == "dev" and args.status != "not-started" and test != "done" and not args.force:
-        die(f"门禁：任务 {tid} 的 Test={test}，Test=done 之前不得推进 Dev（--force 可越过，需在 notes 说明理由）")
+        die(f"gate: task {tid} has Test={test}; Dev must not advance before Test=done (--force bypasses, state the reason in notes)")
     if args.status == "done" and not args.force:
         ok, msg = review_check(reg.root, tid, args.field)
         if not ok:
-            die(f"门禁：任务 {tid} 的 {args.field} 评审未闭环——{msg}（--force 可越过，需在 notes 说明理由）")
+            die(f"gate: the {args.field} review of task {tid} is not closed — {msg} (--force bypasses, state the reason in notes)")
     if args.field == "test":
         test = args.status
     else:
@@ -297,16 +304,16 @@ def _insert_at(reg: Registry, row, args):
 def cmd_add(reg: Registry, args):
     if args.id:
         if not re.fullmatch(r"\d{4}", args.id):
-            die("--id 必须是 4 位数字")
+            die("--id must be 4 digits")
         tid = args.id
     else:
         tid = f"{max((int(r[0]) for r in reg.rows), default=0) + 1:04d}"
     if any(r[0] == tid for r in reg.rows):
-        die(f"任务 {tid} 已存在")
+        die(f"task {tid} already exists")
     spec_dir = os.path.join(reg.root, "tasks", "specs")
     spec_path = os.path.join(spec_dir, f"{tid}.html")
     if os.path.exists(spec_path):
-        die(f"{spec_path} 已存在，拒绝覆盖")
+        die(f"{spec_path} already exists, refusing to overwrite")
     template_path = resolve_template(reg.root, "_template.html")
     with open(template_path, encoding="utf-8") as f:
         spec = f.read()
@@ -346,7 +353,7 @@ def cmd_verify(root: str, args):
     root = os.path.abspath(root)
     script = os.path.join(root, "tasks", "specs", args.id, "acceptance.sh")
     if not os.path.isfile(script):
-        die(f"缺少 {script}（QA 尚未交付验收脚本）")
+        die(f"{script} missing (QA has not delivered the acceptance script yet)")
     checkout = os.path.abspath(args.checkout) if args.checkout else root
     proc = subprocess.run(["bash", script, checkout])
     sys.exit(proc.returncode)
@@ -354,24 +361,24 @@ def cmd_verify(root: str, args):
 
 def main():
     p = argparse.ArgumentParser(prog="taskctl", description=__doc__)
-    p.add_argument("--root", default=".", help="项目根目录（含 tasks/task.html）")
+    p.add_argument("--root", default=".", help="project root (the one holding tasks/task.html)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("list", help="TSV: 优先级序号 id test dev 标题")
+    sub.add_parser("list", help="TSV: priority index, id, test, dev, title")
 
-    sp = sub.add_parser("show", help="打印单个任务的 TSV 行")
+    sp = sub.add_parser("show", help="print a single task's TSV row")
     sp.add_argument("id")
 
-    sp = sub.add_parser("next", help="打印可派发的最高优先级任务 id")
+    sp = sub.add_parser("next", help="print the id of the highest-priority dispatchable task")
     sp.add_argument("stage", choices=["test", "dev"])
 
-    sp = sub.add_parser("set", help="推进任务状态")
+    sp = sub.add_parser("set", help="advance a task's status")
     sp.add_argument("id")
     sp.add_argument("field", choices=["test", "dev"])
     sp.add_argument("status", choices=list(STATUSES))
     sp.add_argument("--force", action="store_true")
 
-    sp = sub.add_parser("add", help="注册新任务：建 spec、建资源目录、插入表格行")
+    sp = sub.add_parser("add", help="register a new task: create the spec, the resource directory, and the table row")
     sp.add_argument("title")
     sp.add_argument("--id")
     g = sp.add_mutually_exclusive_group()
@@ -379,7 +386,7 @@ def main():
     g.add_argument("--after", metavar="ID")
     g.add_argument("--before", metavar="ID")
 
-    sp = sub.add_parser("move", help="调整优先级（行序）")
+    sp = sub.add_parser("move", help="adjust priority (row order)")
     sp.add_argument("id")
     g = sp.add_mutually_exclusive_group(required=True)
     g.add_argument("--top", action="store_true")
@@ -387,15 +394,15 @@ def main():
     g.add_argument("--after", metavar="ID")
     g.add_argument("--before", metavar="ID")
 
-    sp = sub.add_parser("retitle", help="修改任务标题")
+    sp = sub.add_parser("retitle", help="change a task's title")
     sp.add_argument("id")
     sp.add_argument("title")
 
-    sp = sub.add_parser("verify", help="运行 acceptance.sh，退出码即判定")
+    sp = sub.add_parser("verify", help="run acceptance.sh; its exit code is the verdict")
     sp.add_argument("id")
-    sp.add_argument("--checkout", help="被验收的检出目录，默认项目根（主检出）")
+    sp.add_argument("--checkout", help="the checkout directory under acceptance, defaults to the project root (main checkout)")
 
-    sp = sub.add_parser("review-check", help="校验评审闭环：无 [BLOCKING]、结论行「无阻塞项」、轮数≤2")
+    sp = sub.add_parser("review-check", help="verify review closure: no [BLOCKING], a \"no blocking items\" conclusion line, rounds <= 2")
     sp.add_argument("id")
     sp.add_argument("lane", choices=["test", "dev"])
 

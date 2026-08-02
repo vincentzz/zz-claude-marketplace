@@ -1,22 +1,22 @@
 ---
 name: agent-notes
-description: 各角色在 tasks/specs/<id>/<agent>/ 下记录有价值信息的契约。qa/dev 收尾写 notes、落盘评审文本、给下一角色交接时使用。
+description: The contract for how each role records valuable information under tasks/specs/<id>/<agent>/. Use when qa/dev wrap up and write notes, write review text to disk, or hand off to the next role.
 ---
 
-# 角色笔记
+# Role Notes
 
-路径契约：`tasks/specs/<id>/<角色名>/notes.md`（主检出下的路径，非工作树）。评审文本由**唤起方**落盘为同目录 `review-N.md`，N 从 1 递增。
+Path contract: `tasks/specs/<id>/<role-name>/notes.md` (a path under the main checkout, not the worktree). Review text is written to disk by the **invoking side** as `review-N.md` in the same directory, with N counting up from 1.
 
-## 记什么（每条都要能改变后来者的行为）
+## What to record (every entry must be able to change a later reader's behavior)
 
-- **决策与理由**：走了 A 没走 B，因为什么。只记结论不记理由的决策等于没记。
-- **坑**：踩过一次、别人还会踩的东西——环境怪癖、依赖暗坑、spec 里容易读歪的句子。
-- **对 spec 的偏离与仲裁结果**：谁批的、依据什么（这是判责链的一环）。
-- **运行环境标注**：本地降级模式（PIPELINE_PROVIDER=local）下完成的工作，notes 首行注明 `[local-mode]`——恢复订阅后的质量回填抽查以此为索引。
-- **交接**：写给下一个角色的一句话——qa 写给 dev（哪条 AC 最难缠），dev 写给 architect（实现里最值得知道的一件事）。
+- **Decisions and rationale**: took A, not B, and why. A decision recorded without its rationale is not recorded at all.
+- **Traps**: things you stepped in once that someone else will step in again — environment quirks, hidden pitfalls in dependencies, sentences in the spec that are easy to misread.
+- **Deviations from the spec and arbitration outcomes**: who approved it, on what grounds (this is a link in the accountability chain).
+- **Runtime environment marker**: for work completed in local fallback mode (PIPELINE_PROVIDER=local), mark `[local-mode]` on the first line of notes — the quality spot-check backfill after the subscription is restored uses this as its index.
+- **Handoff**: one sentence for the next role — qa writes to dev (which AC is the nastiest), dev writes to architect (the single most worth-knowing thing about the implementation).
 
-## 不记什么
+## What not to record
 
-流水账（"跑了测试"）、与本任务无关的感想、能从 git log 与 diff 直接读出的事实。notes 是增量信息，不是日志。
+Running commentary ("ran the tests"), musings unrelated to this task, facts readable straight off git log and the diff. Notes are incremental information, not a log.
 
-格式自由，一个小标题一件事，短句直给。notes 随 `tasks/**` 同属个人工装，不入项目库。
+Format is free: one subheading per item, short sentences, straight to the point. Notes belong to personal tooling along with `tasks/**` and do not enter the project repository.

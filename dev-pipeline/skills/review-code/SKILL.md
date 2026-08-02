@@ -1,40 +1,40 @@
 ---
 name: review-code
-description: 评审实现代码的两轴准绳（Spec 忠实度 / 代码标准）。dev-reviewer 对单个 task 的实现 diff 出具评审时使用。
+description: The two-axis yardstick for reviewing implementation code (spec fidelity / code standards). Use when dev-reviewer issues a review of the implementation diff for a single task.
 ---
 
-# 评审实现代码
+# Reviewing Implementation Code
 
-两轴分查、分报、不合并排序：合规的代码可能做错了事，做对了事的代码可能违反纪律——混在一起排名，一轴会遮蔽另一轴。
+Examine and report the two axes separately; never merge them into one ranking: compliant code can do the wrong thing, and code that does the right thing can violate discipline — rank them together and one axis will mask the other.
 
-## Spec 轴（对照 spec 全文）
+## Spec Axis (against the full spec)
 
-- **缺**：spec 要求的行为缺失或半成品，引 spec 原句为证。[BLOCKING]
-- **多**：spec 没要的公开成员、参数、配置项、"顺手"功能——对照第 4 节非目标。含从通行实现带入的语义：无 spec 出处的行为就是越权，无论它多"标准"。Speculative Generality 同此处理。[BLOCKING]
-- **歪**：看似实现了但语义可疑之处，引 spec 原句 + 代码位置。[BLOCKING]
-- **绕**：实现绕过测试意图——写死期望值、探测测试环境、特判测试输入。这是销毁判责证据。[BLOCKING]
+- **Missing**: behavior the spec requires is absent or half-built; quote the spec sentence as evidence. [BLOCKING]
+- **Extra**: public members, parameters, config options, or "while I was in there" features the spec never asked for — check against section 4, Non-Goals. This includes semantics carried in from the standard implementation: behavior with no provenance in the spec is overreach, however "standard" it may be. Speculative Generality is handled here too. [BLOCKING]
+- **Skewed**: places that look implemented but whose semantics are questionable; quote the spec sentence + the code location. [BLOCKING]
+- **Circumvented**: the implementation routes around the intent of the tests — hard-coded expected values, sniffing for the test environment, special-casing test inputs. This destroys the evidence accountability rests on. [BLOCKING]
 
-## 标准轴（对照设计纪律与坏味道基线）
+## Standards Axis (against design discipline and the code-smell baseline)
 
-先查 deep-module 三件事（用 `/deep-module-design` 的词汇）：
+First check the three deep-module items (using the vocabulary of `/deep-module-design`):
 
-- **接口变浅**：实现细节漏进接口（暴露内部状态、参数直传内部结构）。
-- **责任边界含糊**：抛出的异常类型/消息对不上 spec 2.3 的判定依据，失败无法机械判责。
-- **依赖自造**：模块内部 new 自己的依赖而非显式传入。
+- **Interface gone shallow**: implementation details leaking into the interface (exposed internal state, parameters passing internal structures straight through).
+- **Blurred responsibility boundary**: the exception types/messages thrown don't line up with spec 2.3's decision basis, so failures can't be attributed mechanically.
+- **Self-constructed dependencies**: the module `new`s its own dependencies instead of receiving them explicitly.
 
-再查风格契约（`/coding-standards` 是与 dev 共同的准绳）：
-- **机械前置**：对本任务改动的代码文件跑 `grep -rnP '[\x{4E00}-\x{9FFF}]'`——命中即 [BLOCKING]（语言契约：代码与注释一律英文）。
-- 命令式写法或可变状态：其热区认定与降级理由必须能在 spec 2.1 或 dev notes 自由选择清单中找到——找不到即 [BLOCKING]（审计链缺口）；找到了但依据存疑（凭感觉的"可能会慢"、说不出收益机制）记 [SUGGEST] 并点名。
-- 冷区里的声明式机会（可换 Stream/switch 表达式/record 而更清晰处）：[SUGGEST]。热区不提纯风格性建议，除非同等性能下确有更清晰写法。
+Then check the style contract (`/coding-standards` is the shared yardstick with dev):
+- **Mechanical precondition**: run `grep -rnP '[\x{4E00}-\x{9FFF}]'` over the code files changed by this task — any hit is [BLOCKING] (language contract: code and comments are always in English).
+- Imperative style or mutable state: the hot-zone determination and the downgrade rationale must be findable in spec 2.1 or in dev's free-choice list in notes — not findable is [BLOCKING] (a break in the audit chain); findable but with dubious grounds (a gut-feel "this might be slow", no articulable mechanism of gain) is a [SUGGEST], named explicitly.
+- Declarative opportunities in the cold zone (spots where a stream/switch expression/record would be clearer): [SUGGEST]. Do not raise purely stylistic suggestions in the hot zone unless a clearer form exists at equal performance.
 
-再过一遍高频坏味道基线（Fowler 语汇，语言无关；皆为判断题，不是硬违规；与 spec 明示的取舍相抵时 spec 胜出）：
+Then run through the high-frequency code-smell baseline (Fowler's vocabulary, language-independent; all are judgment calls, not hard violations, and where they collide with a trade-off the spec states explicitly, the spec wins):
 
-- **Mysterious Name** —— 名不副实 → 改名；改不出诚实的名字说明设计混了。
-- **Duplicated Code** —— 同形逻辑两处以上 → 提取共形。
-- **Primitive Obsession** —— 原始类型硬扛领域概念 → 给概念立小类型。
-- **Shotgun Surgery** —— 一个逻辑改动散落多文件 → 聚拢进一个模块。
-- **Long Method / 深嵌套** —— 一屏读不完、三层以上嵌套 → 按意图拆分。
+- **Mysterious Name** — the name doesn't match the thing → rename it; if you can't produce an honest name, the design is muddled.
+- **Duplicated Code** — the same shape of logic in two or more places → extract the common shape.
+- **Primitive Obsession** — primitive types carrying domain concepts → give the concept its own small type.
+- **Shotgun Surgery** — one logical change scattered across many files → gather it into one module.
+- **Long Method / deep nesting** — doesn't fit on a screen, nested more than three levels → split by intent.
 
-标准轴发现默认 [SUGGEST]；deep-module 三件事若成立则 [BLOCKING]。工具（编译器、格式化、静态检查）已强制的事项不重复评。
+Standards-axis findings are [SUGGEST] by default; the three deep-module items, when they hold, are [BLOCKING]. Do not re-review anything the tooling (compiler, formatter, static analysis) already enforces.
 
-<!-- 两轴结构与坏味道基线改编自 mattpocock/skills 的 code-review（MIT），按 Java/本流水线裁剪。 -->
+<!-- The two-axis structure and the code-smell baseline are adapted from code-review in mattpocock/skills (MIT), trimmed for Java and this pipeline. -->

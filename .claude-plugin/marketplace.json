@@ -7,10 +7,15 @@
     {
       "name": "dev-pipeline",
       "source": "./dev-pipeline",
-      "description": "五角色软件开发流水线：architect/qa/dev/双 reviewer，机械判责，语言无关"
+      "description": "Five-role software development pipeline: architect/qa/dev plus two reviewers, mechanical accountability, language-agnostic"
+    },
+    {
+      "name": "dev-pipeline-cn",
+      "source": "./dev-pipeline-cn",
+      "description": "五角色软件开发流水线：architect/qa/dev/双 reviewer，机械判责，语言无关（中文版）"
     }
   ],
   "metadata": {
-    "description": "Vincent 的 Claude Code profile 市场：软件开发流水线等"
+    "description": "Vincent's Claude Code profile marketplace: software development pipelines and more"
   }
 }

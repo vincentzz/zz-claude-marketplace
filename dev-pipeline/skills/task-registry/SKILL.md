@@ -1,40 +1,40 @@
 ---
 name: task-registry
-description: 任务总表 tasks/task.html 的读写命令参考（taskctl）。查询任务、派发选取、推进状态、注册新任务、调整优先级、机械验收时使用。
+description: Command reference (taskctl) for reading and writing the task registry tasks/task.html. Use when querying tasks, picking one for dispatch, advancing status, registering a new task, adjusting priority, or running mechanical acceptance.
 allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/taskctl.py *)
 ---
 
-# 任务注册表（taskctl）
+# Task Registry (taskctl)
 
-`tasks/task.html` 是任务状态唯一真源，**只能**经 taskctl 读写。行序即优先级。手改表格行会被 taskctl 以契约违反拒绝服务。
+`tasks/task.html` is the single source of truth for task status and may **only** be read and written through taskctl. Row order is priority. Editing table rows by hand makes taskctl refuse service on a contract violation.
 
-统一调用形式（绝对路径，与 cwd 无关）：
+Uniform invocation (absolute path, independent of cwd):
 
 ```
-python3 ${CLAUDE_SKILL_DIR}/scripts/taskctl.py --root ${CLAUDE_PROJECT_DIR} <子命令>
+python3 ${CLAUDE_SKILL_DIR}/scripts/taskctl.py --root ${CLAUDE_PROJECT_DIR} <subcommand>
 ```
 
-## 子命令
+## Subcommands
 
-| 命令 | 作用 | 输出 / 退出码 |
+| Command | Purpose | Output / exit code |
 |---|---|---|
-| `list` | 全表 | TSV：`优先级序号 id test dev 标题` |
-| `show <id>` | 单行 | 同上 |
-| `next test` | 最高优先级、Test=not-started 的任务 | 打印 id；无则 exit 3 |
-| `next dev` | 最高优先级、Test=done 且 Dev=not-started 的任务 | 打印 id；无则 exit 3 |
-| `set <id> test\|dev <status>` | 推进状态（status ∈ not-started/in-progress/done） | 门禁①：Test=done 之前 Dev 不得离开 not-started；门禁②：推进到 done 需对应评审闭环（同 review-check） |
-| `review-check <id> test\|dev` | 校验评审闭环：最新 review-N.md 无 [BLOCKING]、含「结论：无阻塞项」结论行、轮数 ≤2 | exit 0 通过；2 未闭环（stderr 给出原因） |
-| `add "<标题>" [--id NNNN] [--top\|--after ID\|--before ID]` | 注册：从 `_template.html` 建 spec、建 `specs/<id>/`、插行（默认队尾） | 打印新 id |
-| `move <id> --top\|--bottom\|--after ID\|--before ID` | 调优先级 | |
-| `retitle <id> "<标题>"` | 改标题 | |
-| `verify <id> [--checkout DIR]` | 运行 `tasks/specs/<id>/acceptance.sh`，默认对主检出验收 | **退出码即判定**：0 ⟺ 全部 AC 通过 |
+| `list` | The whole table | TSV: `priority-index id test dev title` |
+| `show <id>` | A single row | Same as above |
+| `next test` | Highest-priority task with Test=not-started | Prints the id; exit 3 if none |
+| `next dev` | Highest-priority task with Test=done and Dev=not-started | Prints the id; exit 3 if none |
+| `set <id> test\|dev <status>` | Advance status (status ∈ not-started/in-progress/done) | Gate ①: Dev may not leave not-started before Test=done; Gate ②: advancing to done requires the corresponding review closure (same as review-check) |
+| `review-check <id> test\|dev` | Verify review closure: the latest review-N.md has no [BLOCKING], contains the conclusion line `Conclusion: no blocking items`, and the round count is ≤2 | exit 0 = pass; 2 = not closed (reason on stderr) |
+| `add "<title>" [--id NNNN] [--top\|--after ID\|--before ID]` | Register: create the spec from `_template.html`, create `specs/<id>/`, insert the row (tail by default) | Prints the new id |
+| `move <id> --top\|--bottom\|--after ID\|--before ID` | Adjust priority | |
+| `retitle <id> "<title>"` | Change the title | |
+| `verify <id> [--checkout DIR]` | Run `tasks/specs/<id>/acceptance.sh`, accepting against the main checkout by default | **The exit code is the verdict**: 0 ⟺ all ACs pass |
 
-## 排除自守护
+## Self-Guarding Exclusions
 
-taskctl 每次运行会幂等地把 `tasks/`、`.worktrees/`、`.claude/`、`CLAUDE.md` 写入 `.git/info/exclude`（已被 git 跟踪的路径跳过）——harness 状态永不入团队库是机械不变量，不依赖任何人记得安装步骤。
+Every taskctl run idempotently writes `tasks/`, `.worktrees/`, `.claude/`, and `CLAUDE.md` into `.git/info/exclude` (skipping paths already tracked by git) — harness state never entering the team repository is a mechanical invariant, not something that depends on anyone remembering an install step.
 
-## 纪律
+## Discipline
 
-- 状态推进只由 architect 执行；`set` 之后随手 `git add tasks && git commit -m "tasks: …"`。
-- `--force` 只用于仲裁后的特批，且必须同时在该任务的 architect notes 里写明理由。
-- 退出码 2 = 用法或契约违反（读 stderr 的中文报错），3 = `next` 无可派发。脚本报错说明世界与契约不一致——先修世界或找 architect，不要绕过脚本。
+- Status advancement is performed by architect only; right after a `set`, do `git add tasks && git commit -m "tasks: …"`.
+- `--force` is only for a special dispensation after arbitration, and the reason must be written into that task's architect notes at the same time.
+- Exit code 2 = usage or contract violation (read the error on stderr), 3 = `next` has nothing to dispatch. A script error means the world and the contract disagree — fix the world or go to architect first, don't route around the script.

@@ -1,27 +1,27 @@
 ---
 name: token-budget
-description: 派发子代理前的 token 预算门禁。architect 每次唤起 qa/dev 之前、或用户询问额度余量时使用。
+description: The token budget gate checked before dispatching a subagent. Use before architect invokes qa/dev each time, or when the user asks about remaining quota.
 allowed-tools: Bash(bash ${CLAUDE_SKILL_DIR}/scripts/check-token-budget.sh *)
 ---
 
-# Token 预算门禁
+# Token Budget Gate
 
-数据来源：`.claude/pipeline/statusline-budget.sh`（statusline 每次刷新把订阅额度 5h/7d 余量、重置时间与上下文余量写入 `.claude/pipeline/budget.json`）。门禁读该文件机械判定，不做任何估算。
+Data source: `.claude/pipeline/statusline-budget.sh` (on every statusline refresh it writes the 5h/7d subscription quota headroom, reset times, and context headroom into `.claude/pipeline/budget.json`). The gate decides mechanically from that file and estimates nothing.
 
-检查命令（每次派发前必跑）：
+Check command (run before every dispatch):
 
 ```
 bash ${CLAUDE_SKILL_DIR}/scripts/check-token-budget.sh ${CLAUDE_PROJECT_DIR}
 ```
 
-## 判定与动作
+## Verdicts and Actions
 
-| 退出码 | 含义 | architect 的动作 |
+| Exit code | Meaning | architect's action |
 |---|---|---|
-| 0 `OK` | 额度余量（5h 与 7d 取小）≥ 阈值，且上下文余量 ≥ 阈值 | 正常派发 |
-| 1 `LOW` | 任一余量低于阈值 | **停止派发新任务**；向用户播报余量与重置时间；在跑的子代理任其收尾；然后给用户两个选项——等重置，或**切本地降级模式**（退出本会话，`PIPELINE_LOCAL_MODEL=<模型> bash ~/.claude/pipeline/pipeline-local.sh`；tasks/ 与 git 里状态齐全，重启无损，in-progress 任务重派即续）|
-| 2 `UNKNOWN` | budget.json 缺失/过期（statusline 未装、会话刚启动、API 计费账号） | 提醒用户一次（指向 README 的 statusline 配置）；降级为同一时刻至多 1 个子代理继续 |
+| 0 `OK` | Quota headroom (the smaller of 5h and 7d) ≥ threshold, and context headroom ≥ threshold | Dispatch normally |
+| 1 `LOW` | Either headroom is below its threshold | **Stop dispatching new tasks**; report the headroom and reset times to the user; let running subagents wind down; then offer the user two options — wait for the reset, or **switch to local fallback mode** (exit this session, `PIPELINE_LOCAL_MODEL=<model> bash ~/.claude/pipeline/pipeline-local.sh`; state is complete in tasks/ and git, restarting loses nothing, and an in-progress task resumes on re-dispatch) |
+| 2 `UNKNOWN` | budget.json missing/stale (statusline not installed, session just started, API-billed account) | Remind the user once (point at the statusline setup in the README); degrade to at most 1 subagent at a time and continue |
 
-阈值经环境变量调整：`PIPELINE_MIN_QUOTA_PCT`（默认 20）、`PIPELINE_MIN_CONTEXT_PCT`（默认 15）、`PIPELINE_BUDGET_MAX_AGE`（默认 900 秒）。
+Thresholds are adjusted via environment variables: `PIPELINE_MIN_QUOTA_PCT` (default 20), `PIPELINE_MIN_CONTEXT_PCT` (default 15), `PIPELINE_BUDGET_MAX_AGE` (default 900 seconds).
 
-上下文余量指 architect 主会话自身——它同样是稀缺资源：LOW 若由上下文触发，先让在跑任务收尾、汇总必要状态，再建议用户开新会话续跑（任务状态都在 `tasks/` 里，续跑无损）。
+Context headroom refers to architect's own main session — it is a scarce resource too: if LOW is triggered by context, first let running tasks wind down and summarize the necessary state, then suggest the user open a new session to continue (all task state lives in `tasks/`, so continuing loses nothing).

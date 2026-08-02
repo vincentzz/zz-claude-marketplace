@@ -1,27 +1,27 @@
 ---
 name: review-test-cases
-description: 评审验收测试的两轴准绳与完成判据。qa-reviewer 对单个 task 的测试用例与 acceptance.sh 出具评审时使用。
+description: The two-axis yardstick and completion tests for reviewing acceptance tests. Use when qa-reviewer issues a review of the test cases and acceptance.sh for a single task.
 ---
 
-# 评审验收测试
+# Reviewing Acceptance Tests
 
-两轴分查，互不折抵：覆盖轴查"合同抄全了吗"，质量轴查"这些测试值得信吗"。
+Examine the two axes separately; neither offsets the other. The coverage axis asks "was the contract copied out in full?"; the quality axis asks "are these tests worth trusting?".
 
-## 覆盖轴（对照 spec）
+## Coverage Axis (against the spec)
 
-- **AC↔测试双向映射**：每条 AC 至少一个测试承载；每个测试都能指回一条 AC。孤儿测试（spec 没要的行为）与孤儿 AC（没人承载）都是 [BLOCKING]。
-- **失败归属表逐行有测**：spec 2.3 每一行都被断言到异常类型 + 机械判定依据。缺行是 [BLOCKING]。
-- **骨架保真**：落下的接口与 spec 2.1 逐字一致——多一个公开成员、少一个 `throws` 都是 [BLOCKING]。
-- **acceptance.sh 合同**：符合 `/mechanical-acceptance` 的脚本契约；标签选取只圈住本任务测试。
+- **AC↔test bidirectional mapping**: every AC is carried by at least one test; every test can point back to an AC. Orphan tests (behavior the spec never asked for) and orphan ACs (carried by nobody) are both [BLOCKING].
+- **Every row of the failure-attribution table has a test**: each row of spec 2.3 is asserted on both exception type + mechanical decision basis. A missing row is [BLOCKING].
+- **Skeleton fidelity**: the interface laid down matches spec 2.1 verbatim — one extra public member or one missing `throws` is [BLOCKING].
+- **acceptance.sh contract**: conforms to the script contract in `/mechanical-acceptance`; tag selection scopes to this task's tests only.
 
-## 质量轴（对照测试自身）
+## Quality Axis (against the tests themselves)
 
-- **实现耦合**：mock 内部协作者、断言私有状态、侧门验证。判据：想象一次不改行为的重构，测试会不会红。实现耦合往往是**禁知违反的下游证据**——测试里出现了 spec 2.1/2.3/3 推不出来的结构、常量、算法假设——无论来自读了不该读的东西，还是来自先验里的通行做法——一并指出；断言缺出处旁注同此。[BLOCKING]
-- **套套逻辑**：期望值用被测同款算法现推、快照自我印证、常量等于自身。期望值必须来自独立真源。[BLOCKING]
-- **隐藏依赖**：测试间共享可变状态或顺序依赖；一条 AC 连坐另一条变红。[BLOCKING]
-- **红态原因**：亲跑 acceptance.sh——必须编译过、红在运行期、每条测试红在自己断言的行为上。编译失败即 [BLOCKING]。
-- 命名不似 spec 复述、断言消息无助判责，记 [SUGGEST]。
+- **Implementation coupling**: mocking internal collaborators, asserting on private state, verifying through a side door. Criterion: imagine a refactor that changes no behavior — would the tests go red? Implementation coupling is often **downstream evidence of a forbidden-knowledge violation** — a structure, constant, or algorithmic assumption appears in the tests that cannot be derived from spec 2.1/2.3/3 — whether it came from reading something that shouldn't have been read or from the standard practice in the priors, call it out either way; a missing provenance annotation on an assertion falls here too. [BLOCKING]
+- **Tautology**: the expected value derived on the fly with the same algorithm as the code under test, snapshots that confirm themselves, a constant equal to itself. Expected values must come from an independent source of truth. [BLOCKING]
+- **Hidden dependencies**: tests sharing mutable state or depending on ordering; one AC turning another red as collateral damage. [BLOCKING]
+- **Reason for red**: run acceptance.sh yourself — it must compile, be red at runtime, and each test must be red on the behavior it itself asserts. A compilation failure is [BLOCKING].
+- Names that don't read like a restatement of the spec, and assertion messages that don't help attribute failure, are [SUGGEST].
 
-## 完成判据
+## Completion Tests
 
-评审报告里，**每条 AC 与每个测试方法都被点过名**（在映射表中或在发现项中）；漏点一个，评审未完成。[BLOCKING] 的门槛：会放走 spec 违约、或会在重构中误伤。够不上的一律 [SUGGEST]，不升格。
+In the review report, **every AC and every test method has been named** (either in the mapping table or in the findings); miss one and the review is not complete. The bar for [BLOCKING]: it would let a spec breach through, or it would misfire during a refactor. Anything below that bar is [SUGGEST] and is not promoted.

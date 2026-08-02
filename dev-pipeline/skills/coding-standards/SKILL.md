@@ -1,39 +1,39 @@
 ---
 name: coding-standards
-description: 实现代码的风格契约：正确性与可读性优先、声明式为默认、现代语言特性、评审友好、代码一律英文。dev 写实现、dev-reviewer 评标准轴时使用。
+description: The style contract for implementation code — correctness and readability first, declarative by default, modern language features, review-friendly, code always in English. Use when dev writes an implementation and when dev-reviewer reviews the standards axis.
 ---
 
-# 实现风格契约
+# Implementation Style Contract
 
-先分区，再排序。分区判据：**这段代码可能成为性能瓶颈吗？**
+Partition first, then order. Partition test: **could this code become a performance bottleneck?**
 
-- **冷区（默认）**：正确性 > 可读性 > 声明式简洁 > 性能。绝大多数代码在这里；为想象中的性能牺牲可读性，是过早优化。
-- **热区**：正确性 > **性能** > 可读性 > 声明式简洁。性能仅次于正确性——但排序改变不豁免可读性纪律：同等性能取更可读的写法，命名与结构照旧。
+- **Cold zone (default)**: correctness > readability > declarative concision > performance. The vast majority of code lives here; sacrificing readability for imagined performance is premature optimization.
+- **Hot zone**: correctness > **performance** > readability > declarative concision. Performance ranks right behind correctness — but reordering does not exempt you from readability discipline: at equal performance take the more readable form, and naming and structure stay as they are.
 
-热区认定的合法来源（判断也要有出处）：
+Legitimate sources for declaring a hot zone (a judgment call needs a source too):
 
-1. **spec 2.1 声明的性能特征 / 热路径标注**——architect 的设计输出，重要的性能约束应配机械 AC。
-2. **dev 的局部判断**（per-call 路径上的分配、无界输入上的 O(n) 之类）——可用，但必须登记进自由选择清单："判为热区的依据 + 收益机制（省了什么分配/装箱/复杂度）"。凭感觉的"可能会慢"不构成依据。
-3. 判断若大到影响接口形态或值得一条 perf AC——那是 spec 缺口，上报 architect，不自行扩权。
+1. **Performance characteristics / hot-path markers declared in spec 2.1** — architect's design output; a performance constraint that matters should come with a mechanical AC.
+2. **dev's local judgment** (allocation on a per-call path, O(n) on unbounded input, and the like) — allowed, but it must be registered in the free-choice list: "grounds for calling it a hot zone + the mechanism of the gain (which allocation/boxing/complexity was saved)". A gut-feel "this might be slow" is not grounds.
+3. If the judgment is big enough to affect the interface shape, or worth a perf AC, it is a spec gap: report it to architect rather than expanding your own authority.
 
-## 声明式为默认
+## Declarative by Default
 
-- 表达"是什么"，不表达"怎么一步步做"：Stream/收集器替代手写循环与累加器；switch 表达式 + 模式匹配替代 if-else 级联；提前返回替代深嵌套。
-- 不变性为默认：字段 `final`、集合不可变（`List.of` / `toUnmodifiableList`）、纯函数优先。可变状态是需要理由的例外。
-- **命令式的资格**：热区按上述认定来源；冷区仅当声明式写法明显更晦涩。两种情况的降级都是 spec 沉默处的选择，写进自由选择清单，一句"降了什么 + 为什么"。
+- Express "what it is", not "how to do it step by step": streams/collectors instead of hand-written loops and accumulators; switch expressions + pattern matching instead of if-else cascades; early return instead of deep nesting.
+- Immutability by default: `final` fields, immutable collections (`List.of` / `toUnmodifiableList`), pure functions preferred. Mutable state is an exception that needs a reason.
+- **When imperative qualifies**: in the hot zone, per the sources above; in the cold zone, only when the declarative form is clearly more obscure. Both downgrades are choices made where the spec is silent — write them into the free-choice list, one line of "what was downgraded + why".
 
-## 现代语言特性（按 构建约定（项目垫片 CLAUDE.local.md）的语言基线展开；以下为 Java 17 实例）
+## Modern Language Features (unfold against the language baseline in the build conventions (project shim CLAUDE.local.md); the example below is Java 17)
 
-`record` 替代手写 POJO、`sealed` + 模式匹配配穷尽 `switch`、switch 表达式、text block、`var`（仅当右侧类型一目了然）。特性服务于可读性，不是炫技：用 `record` 就别再造 setter 味的变体链，用 `sealed` 就让编译器替你穷尽分支——这也是"编译期优于运行期"的一贯立场。
+`record` instead of hand-written POJOs, `sealed` + pattern matching with an exhaustive `switch`, switch expressions, text blocks, `var` (only when the right-hand-side type is obvious at a glance). Features serve readability, not showmanship: if you use `record`, stop building setter-flavored variant chains; if you use `sealed`, let the compiler exhaust the branches for you — this is the same "compile time beats runtime" stance as everywhere else.
 
-换语言时**整节替换**本节，优先级排序与冷热分区判据不变（Rust：迭代器链、穷尽 `match`、clippy 基线；Haskell：本就声明式，热区转而关注严格性注解与融合；Zig：comptime 换取运行期分支……）。
+When the language changes, **replace this section wholesale**; the priority ordering and the cold/hot partition test do not change (Rust: iterator chains, exhaustive `match`, a clippy baseline; Haskell: declarative already, so the hot zone shifts to strictness annotations and fusion; Zig: comptime traded for runtime branching…).
 
-## 评审友好
+## Review-Friendly
 
-- 一次提交一个意图；diff 的阅读顺序贴合 spec 的行为顺序。
-- 方法一屏读完，嵌套 ≤2 层；命名用 spec 2.1 的领域词汇，不发明第二套词。
-- 注释只写 why 不写 what——what 由代码自己说。出处类注释例外（`// per spec 2.1` / `// per AC-2 worked example`），它们是禁知审计的一部分。
+- One intent per commit; the reading order of the diff tracks the behavioral order of the spec.
+- A method fits on one screen, nesting ≤2 levels; naming uses the domain vocabulary of spec 2.1, never a second invented vocabulary.
+- Comments say why, not what — the code says what. Provenance comments are the exception (`// per spec 2.1` / `// per AC-2 worked example`); they are part of the forbidden-knowledge audit.
 
-## 语言
+## Language
 
-**代码、标识符、代码内注释一律英文**。中文只出现在文档（spec、notes、review、完成报告）里。机械判定：改动的代码文件 `grep -rnP '[\x{4E00}-\x{9FFF}]'` 应零命中。
+**Code, identifiers, and in-code comments are always in English.** Non-English text (CJK and the like) belongs only in documents (spec, notes, review, completion report). Mechanical check: `grep -rnP '[\x{4E00}-\x{9FFF}]'` over the changed code files should return zero hits.

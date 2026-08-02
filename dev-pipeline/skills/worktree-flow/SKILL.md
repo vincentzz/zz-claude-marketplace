@@ -1,31 +1,31 @@
 ---
 name: worktree-flow
-description: 任务工作树的使用、freshen 与冲突纪律。qa/dev 在 .worktrees/<id> 内工作、合入基线分支、处理冲突时使用。
+description: How to use task worktrees, freshen them, and handle conflicts. Use when qa/dev work inside .worktrees/<id>, merge into the baseline branch, or resolve conflicts.
 ---
 
-# 工作树纪律
+# Worktree Discipline
 
-一个任务一棵树：目录 `.worktrees/<id>`，分支 `task/<id>`，自**基线分支**分出。基线 = architect 派发那一刻的当前分支，钉于 `tasks/specs/<id>/base-branch`——全流程唯一合并参照，qa/dev 不做任何 git 拓扑手术（建树/合并/清树都在 architect 手里），只在树内工作与提交。**基线常绿**是全流程的不变量；基线与 develop/main 的关系归团队 CI/CD 管。
+One tree per task: directory `.worktrees/<id>`, branch `task/<id>`, branched off the **baseline branch**. The baseline = the current branch at the moment architect dispatches, pinned in `tasks/specs/<id>/base-branch` — the single merge reference for the whole flow. qa/dev perform no git topology surgery whatsoever (creating trees, merging, removing trees are all architect's); they only work and commit inside the tree. An **evergreen baseline** is the invariant of the whole flow; how the baseline relates to develop/main is the team's CI/CD business.
 
-## 铁律：cd 不持久
+## Iron Rule: cd Does Not Persist
 
-子代理里每条 Bash 都是新 shell。**所有**工作树内的操作，要么 `git -C <树路径> …`，要么同一条命令里 `cd <树路径> && …`。忘记这条，命令会默默打在主检出上——那是本流水线最贵的一类事故。
+Every Bash call inside a subagent is a fresh shell. **Every** operation inside the worktree either uses `git -C <tree-path> …` or does `cd <tree-path> && …` within the same command. Forget this and the command silently lands on the main checkout — the most expensive class of accident on this pipeline.
 
-## 进树与 freshen（qa/dev 第一步）
+## Entering the Tree and Freshening (qa/dev's first step)
 
 ```
-git -C <主检出> worktree list        # 树应已由 architect 建好；不在 = 派发缺陷，报告
-BASE="$(cat <主检出>/tasks/specs/<id>/base-branch)"
-cd <主检出>/.worktrees/<id> && git merge --no-edit "$BASE"   # 开工前吸入最新基线
+git -C <main-checkout> worktree list        # the tree should already exist, created by architect; absent = a dispatch defect, report it
+BASE="$(cat <main-checkout>/tasks/specs/<id>/base-branch)"
+cd <main-checkout>/.worktrees/<id> && git merge --no-edit "$BASE"   # pull in the latest baseline before starting
 ```
 
-## 阶段规则
+## Stage Rules
 
-- **qa 阶段**：只在树内提交（`task <id>: acceptance tests (red)`），推进分支即止。红色测试不进基线。
-- **dev 阶段**：绿了之后——① 树内 `git merge --no-edit "$BASE"` 再跑一遍 acceptance 保持绿；② 树内提交（`task <id>: implement, acceptance green`）；③ **交付即止**：不合并回基线、不清树。合并、合并后全量测试（所有任务的测试）、红则 revert、清树，由 architect 在验收门执行。分支 `task/<id>` 与 `.worktrees/` **永不 push**——推向团队远端的只有验收门产出的、你本人签名的基线分支提交。
+- **qa stage**: commit inside the tree only (`task <id>: acceptance tests (red)`), advance the branch and stop there. Red tests never enter the baseline.
+- **dev stage**: once green — ① inside the tree, `git merge --no-edit "$BASE"` and run acceptance again to confirm it stays green; ② commit inside the tree (`task <id>: implement, acceptance green`); ③ **deliver and stop**: do not merge back into the baseline, do not remove the tree. Merging, the post-merge full test run (every task's tests), reverting on red, and removing the tree are architect's job at the acceptance gate. The branch `task/<id>` and `.worktrees/` are **never pushed** — the only thing pushed to the team remote is the baseline-branch commit produced at the acceptance gate and signed by you.
 
-## 冲突纪律
+## Conflict Discipline
 
-冲突只在树内解决。逐个冲突块回答"两侧各自想要什么"，答案去两侧的一手来源找：本侧看 spec 与本任务提交信息，对侧看 `git log -p "$BASE" -- <文件>`。按意图合成解法，**禁 `--abort` 了事、禁机械保留单侧**。解完必须重跑 acceptance.sh 至绿才允许继续。解不出意图归属的，停下报告 architect——architect 依两侧 spec 出具**意图简报**（每个冲突块两侧各想要什么；不附他任务 spec 全文），dev 按简报合成解法、重新过验收。验收门 merge 时出现的冲突由 architect 中止合并（此处 `--abort` 合法：不是解决冲突，是拒绝在门口解决）并携简报重派。每次代码冲突都是**正交性失败的信号**：architect 应把重叠原因记入相关 spec 的变更记录，反哺切分质量。
+Conflicts are resolved inside the tree only. For each conflict hunk, answer "what does each side want", and find the answers in each side's first-hand source: for your side, the spec and this task's commit messages; for the other side, `git log -p "$BASE" -- <file>`. Synthesize a resolution from intent — **no bailing out with `--abort`, no mechanically keeping one side**. Once resolved, acceptance.sh must be re-run to green before you may continue. If you cannot work out whose intent is whose, stop and report to architect — architect issues an **intent brief** based on both specs (what each side of each conflict hunk wants; the other task's full spec is not attached), dev synthesizes the resolution from the brief and re-runs acceptance. Conflicts that surface during the acceptance-gate merge are aborted by architect (`--abort` is legitimate here: it is not resolving the conflict, it is refusing to resolve it at the gate) and re-dispatched together with the brief. Every code conflict is **a signal of orthogonality failure**: architect should record the reason for the overlap in the change log of the relevant spec, feeding back into partitioning quality.
 
-<!-- 冲突纪律借鉴 mattpocock/skills 的 resolving-merge-conflicts（MIT）之意图溯源原则。 -->
+<!-- The conflict discipline borrows the intent-tracing principle from resolving-merge-conflicts in mattpocock/skills (MIT). -->

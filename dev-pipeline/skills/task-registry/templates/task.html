@@ -1,13 +1,16 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>任务总表</title>
+<title>Task Registry</title>
 <!--
-  本文件由 architect 通过 taskctl 维护，是任务状态的唯一真源。
-  契约：<tbody id="tasks"> 内每个任务恰好一行，行序即优先级（越靠上越高）。
-  除 taskctl 外，任何人（包括各 agent）不得改动 tbody 内容；手改即契约违反。
+  This file is maintained by architect through taskctl and is the single source
+  of truth for task status.
+  Contract: exactly one row per task inside <tbody id="tasks">; row order is
+  priority (higher up = higher priority).
+  Nobody other than taskctl (agents included) may alter the tbody contents;
+  hand-editing violates the contract.
 -->
 <style>
   :root {
@@ -25,7 +28,7 @@
   body {
     margin: 2.5rem auto; max-width: 62rem; padding: 0 1.25rem;
     background: var(--bg); color: var(--ink);
-    font: 15px/1.6 "IBM Plex Mono", "Sarasa Mono SC", ui-monospace, monospace;
+    font: 15px/1.6 "IBM Plex Mono", ui-monospace, monospace;
   }
   h1 { font-size: 1.15rem; letter-spacing: .06em; font-weight: 600; }
   h1::before { content: "▤ "; color: var(--dim); }
@@ -42,8 +45,8 @@
 </style>
 </head>
 <body>
-<h1>任务总表</h1>
-<p class="hint">行序即优先级。本表由 architect 经 taskctl 维护；请勿手改表格行。</p>
+<h1>Task Registry</h1>
+<p class="hint">Row order is priority. This table is maintained by architect through taskctl; do not hand-edit the table rows.</p>
 <table>
 <thead>
 <tr><th>taskId</th><th>Test</th><th>Dev</th><th>Task</th></tr>
