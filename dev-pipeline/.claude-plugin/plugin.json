@@ -1,6 +1,6 @@
 {
   "name": "dev-pipeline",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "五角色软件开发流水线 profile：spec 驱动、机械验收、评审门禁、判责闭环。语言无关（构建约定按项目声明）。",
   "author": { "name": "Vincent" },
   "license": "MIT"
