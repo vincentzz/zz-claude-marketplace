@@ -11,15 +11,38 @@ Vincent's [Claude Code](https://code.claude.com) plugin marketplace.
 | [trade-study](./trade-study/) | 0.1.0 | A three-role trade-study pipeline for decision-making: **analyst / scout / challenger**. Isolated per-candidate research with source provenance, ordinal-weighted criteria matrix, adversarial review, deliverables as HTML + PDF + PPTX. |
 | [trade-study-cn](./trade-study-cn/) | 0.1.0 | 中文版 of trade-study — same pipeline with all agents, skills, and docs in Chinese. |
 | [profile-switcher](./profile-switcher/) | 0.9.6 | Always-on utility. `/use-profile` binds, switches, or unbinds the project's profile plugin: enables exactly one (explicit `false` for siblings) and pins its entry agent as the project default; unbind returns the project to plain Claude. |
+| [websearch-tool](./websearch-tool/) | 0.1.0 | Always-on utility. Web search and page fetch that keep working when the built-in `WebSearch`/`WebFetch` tools are gone — the normal case under a non-Anthropic provider. See [Web access without the built-in tools](#web-access-without-the-built-in-tools). |
 
 See [dev-pipeline/README.md](./dev-pipeline/README.md) for the full design, workflow, and tuning guide ([中文版](./dev-pipeline-cn/README.md)), and [trade-study/README.md](./trade-study/README.md) for the trade-study design ([中文版](./trade-study-cn/README.md)).
 
 > Within each EN/CN pair (dev-pipeline / dev-pipeline-cn, trade-study / trade-study-cn), enable only **one** per project — the pair defines the same agent names, and enabling both at once has undefined behavior. Different pipelines (a dev-pipeline and a trade-study) also stay one-per-project: profiles are for switching, not stacking.
 
+## Web access without the built-in tools
+
+Point a session at a non-Anthropic endpoint — `ollama launch claude` against a local model, an OpenAI-compatible proxy — and the built-in `WebSearch` and `WebFetch` tools stop existing. Profiles that depend on research (trade-study's scouts, most of all) then quietly answer from training data instead of from the web. **websearch-tool** closes that hole with one skill and one script: `web.py fetch <url>` and `web.py search "<query>"`.
+
+Results always carry a `CHANNEL` tag, a retrieval date, and the path of a saved copy under `$TMPDIR/claude-web/`. The tag is the point — it tells a reader whether the evidence is mechanically reproducible or best-effort scraping to discount.
+
+| Capability | Needs | Anthropic provider | Local / non-Anthropic provider |
+|---|---|---|---|
+| Built-in `WebSearch` / `WebFetch` | nothing | ✅ used first — this plugin never shadows them | ❌ tools absent |
+| **Fetch a URL** (`curl`, `raw-api`) | nothing | ✅ | ✅ **works with zero setup** |
+| ↳ JS-free rewrites: github.com → raw/API, npm/PyPI/crates → registry JSON, `/llms.txt` probe | nothing | ✅ | ✅ |
+| **Search** (`ddgr-best-effort`) | `brew install ddgr` | ✅ | ✅ once ddgr is installed |
+| **Render a JS page** (`rendered`) | Node + `playwright` + a browser download | ✅ | ✅ once installed |
+
+Honest limits:
+
+- **Search needs `ddgr`.** Without it the script does not improvise and does not fall back to Google — it emits `NO-BACKEND` naming both paths that still work (give it a specific URL, or install ddgr). Fetch, the tier most work actually needs, requires nothing at all.
+- **`ddgr` is best-effort scraping.** It parses DuckDuckGo's HTML, so it is subject to upstream markup changes and to throttling; it can break without notice. Treat titles and abstracts as hints and fetch the URL before citing anything. An empty result is reported as `EMPTY-OR-THROTTLED`, never as "no results found" — those mean opposite things, and the distinction is the reader's to make.
+- **Rendering needs Node.** Tier 4 fires only on detection (a page that proves to be a JavaScript shell), never on prediction. With no browser available it stops at `RENDER_REQUIRED` and says the page was not retrieved, rather than letting the model fill in content it never saw.
+- **No API keys, anywhere.** Not for search, not for fetch. GitHub API calls are unauthenticated and share the anonymous rate limit.
+
 ## Requirements
 
 - Claude Code **≥ 2.1.219**
 - `git` and `python3` on your `PATH`
+- optional, for websearch-tool: `ddgr` (search) and Node + `playwright` (rendering JS-only pages)
 
 ## Installation
 

@@ -28,6 +28,11 @@
       "name": "profile-switcher",
       "source": "./profile-switcher",
       "description": "Always-on utility: /use-profile binds or switches the per-project profile plugin (enables one, disables siblings, pins its entry agent as the project default)"
+    },
+    {
+      "name": "websearch-tool",
+      "source": "./websearch-tool",
+      "description": "Always-on utility: web search and page fetch that survive losing the built-in WebSearch/WebFetch tools (non-Anthropic providers) — curl with JS-free URL rewrites, best-effort ddgr search, headless render on detection"
     }
   ],
   "metadata": {
