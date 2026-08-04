@@ -10,7 +10,7 @@ touched only when a page proves to be a JavaScript shell. No API key, ever.
 
 Exit codes: 0 ok · 3 no/ambiguous search backend · 4 RENDER_REQUIRED · 5 fetch failed.
 """
-import argparse, html.parser, json, os, re, shutil, subprocess, sys, tempfile, time
+import argparse, fcntl, html.parser, json, os, re, shutil, subprocess, sys, tempfile, time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -18,7 +18,13 @@ from urllib.parse import urlsplit
 OUT = Path(tempfile.gettempdir()) / "claude-web"
 TODAY = datetime.now().strftime("%Y-%m-%d")
 MAX_QUERIES = 3       # per invocation — DuckDuckGo throttles bursts
-SEARCH_GAP = 2.5      # seconds enforced between consecutive ddgr calls
+# Pacing is tuned for unattended availability, not for throughput: an agent that
+# gets itself throttled at 03:00 has failed, whereas one that took 20s longer has
+# not. Every gap below is machine-global (see `paced`) and env-overridable.
+SEARCH_GAP = float(os.environ.get("WEB_SEARCH_GAP", 20))    # s between any two ddgr calls
+FETCH_GAP = float(os.environ.get("WEB_FETCH_GAP", 1.5))     # s between two hits on one host
+BACKOFF_MAX = 600     # ceiling on the escalating gap after suspected throttling
+RETRY_WAIT_MAX = 120  # obey Retry-After up to here; past it, report instead of sleeping
 PRINT_CAP = 20000     # chars echoed to stdout; the SAVED file always has it all
 SHELL_MIN = 600       # less extracted text than this ⇒ *maybe* a JS shell
 JS_MARK = re.compile(r"enable JavaScript|requires JavaScript|JavaScript is (?:required|disabled)", re.I)
@@ -40,12 +46,16 @@ still work right now:
 
 THROTTLED = """ddgr returned nothing parseable.
 
-This is AMBIGUOUS and must NOT be reported as "no results found" — it means
-either the query genuinely has no hits, or DuckDuckGo throttled this session.
-The two mean opposite things to a reader.
+Never report this as "no results found" — that claims the web was searched and
+came up empty, which is the opposite of what may have happened. Say the search
+did not complete.
 
-Retry once, ~30s later, with different wording. If it repeats, stop searching
-and fetch a specific URL instead."""
+DuckDuckGo's soft block looks like `HTTP Error 202: Accepted` with an empty
+result array; when that line appears under UPSTREAM below, it is a throttle,
+not an empty index. With no UPSTREAM line the two remain indistinguishable.
+
+Do not retry in a loop — the backoff below is enforced whether you wait or not.
+If it repeats, stop searching and fetch specific URLs instead."""
 
 RENDER_REQ = """This page is a JavaScript shell: curl retrieved markup but no usable text, and
 no headless browser was available to render it.
@@ -106,15 +116,61 @@ def emit(channel, key, subject, status, body, resolved=None):
     print("=== WEB RESULT ===\n" + head + "\n" + shown)
 
 
+def paced(key, gap):
+    """Space out requests of one kind across every process on this machine.
+
+    The lock is held *across* the sleep, so N agents starting at the same instant
+    queue up one gap apart instead of all reading a stale timestamp and firing
+    together — the failure mode that matters when a profile fans out parallel
+    scouts. Waiting is the cheap outcome here; being throttled is the expensive one."""
+    OUT.mkdir(parents=True, exist_ok=True)
+    stamp = OUT / f".pace-{re.sub(r'[^A-Za-z0-9._-]+', '_', key)}"
+    fd = os.open(stamp, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        st = os.fstat(fd)
+        if st.st_size:                      # size 0 ⇒ first ever call, no wait owed
+            time.sleep(max(0.0, gap - (time.time() - st.st_mtime)))
+        os.pwrite(fd, b"x", 0)              # stamp = when this request goes out
+    finally:
+        os.close(fd)                        # releases the lock
+
+
+def strikes(delta=None):
+    """Consecutive suspected-throttle events, persisted so a fresh invocation
+    does not reset the backoff and walk straight back into the wall."""
+    f = OUT / ".ddgr-strikes"
+    try:
+        n = int(f.read_text())
+    except (OSError, ValueError):
+        n = 0
+    if delta is not None:
+        n = 0 if delta == 0 else n + delta
+        OUT.mkdir(parents=True, exist_ok=True)
+        f.write_text(str(n))
+    return n
+
+
 def curl(url, timeout=40, ua=None):
     p = subprocess.run(
         ["curl", "-sSL", "--compressed", "--max-time", str(timeout)]
         + (["-A", ua] if ua else [])
         + ["-H", "Accept: text/html,application/json,text/plain,*/*",
-           "-w", "\n__HTTP__%{http_code}", url],
+           "-w", "\n__HTTP__%{http_code}__HDR__%{header_json}", url],
         capture_output=True, text=True)
-    out, _, code = p.stdout.rpartition("__HTTP__")
-    return out.rstrip("\n"), code.strip(), p.stderr.strip()
+    out, _, tail = p.stdout.rpartition("__HTTP__")
+    code, _, hdr = tail.partition("__HDR__")
+    return out.rstrip("\n"), code.strip(), p.stderr.strip(), hdr
+
+
+def retry_after(hdr):
+    """Seconds the server asked us to wait, or None. Older curl has no
+    %{header_json}; then we simply do not know, and the caller uses its default."""
+    try:
+        v = json.loads(hdr).get("retry-after", [None])[0]
+        return float(v) if v and v.strip().isdigit() else None
+    except (json.JSONDecodeError, AttributeError, TypeError, ValueError):
+        return None
 
 
 class Stripper(html.parser.HTMLParser):
@@ -163,16 +219,24 @@ def is_shell(markup, text):
 
 def llms_hint(url):
     """Documentation sites increasingly publish /llms.txt — a clean text index.
-    One cheap probe; if it is there, say so instead of scraping more HTML."""
+    Probed once per host and cached: an un-cached probe would double this
+    plugin's request rate against the very host we are already reading."""
     p = urlsplit(url)
     if p.path in ("", "/"):
         return ""
     probe = f"{p.scheme}://{p.netloc}/llms.txt"
-    body, code, _ = curl(probe, timeout=8)
-    if code.startswith("2") and body.strip() and "<html" not in body[:400].lower():
-        return (f"NOTE: this site publishes {probe} — a JS-free text index of its docs.\n"
-                f"Fetch that instead of scraping further HTML pages here.\n\n")
-    return ""
+    note = (f"NOTE: this site publishes {probe} — a JS-free text index of its docs.\n"
+            f"Fetch that instead of scraping further HTML pages here.\n\n")
+    cache = OUT / f".llms-{re.sub(r'[^A-Za-z0-9._-]+', '_', p.netloc)}"
+    try:
+        return note if cache.read_text() == "1" else ""
+    except OSError:
+        pass
+    paced(p.netloc, FETCH_GAP)
+    body, code, _, _ = curl(probe, timeout=8)
+    ok = code.startswith("2") and bool(body.strip()) and "<html" not in body[:400].lower()
+    cache.write_text("1" if ok else "0")
+    return note if ok else ""
 
 
 def render(url):
@@ -208,9 +272,23 @@ def fetch(url):
         if re.match(pat, url):
             target, channel = re.sub(pat, rep, url), "raw-api"
             break
-    body, code, err = curl(target)
-    if code in ("403", "429"):        # a few WAFs block curl's own UA; ask once as a browser
-        body, code, err = curl(target, ua=BROWSER_UA)
+    host = urlsplit(target).netloc
+    paced(host, FETCH_GAP)
+    body, code, err, hdr = curl(target)
+    if code == "403":                 # a UA block, not a rate limit: ask again as a browser
+        paced(host, FETCH_GAP)
+        body, code, err, hdr = curl(target, ua=BROWSER_UA)
+    if code == "429":                 # an explicit "slow down" — the one signal never to ignore
+        wait = retry_after(hdr)
+        if wait is not None and wait > RETRY_WAIT_MAX:
+            emit(channel, "URL", url, f"HTTP 429 — rate limited, Retry-After {wait:.0f}s",
+                 f"{host} asked for a {wait:.0f}s pause, longer than this script will block.\n"
+                 f"Nothing was retrieved. Wait it out before touching {host} again;\n"
+                 f"do not retry in a loop, and do not report this as 'page not found'.", target)
+            return 5
+        time.sleep(wait if wait is not None else min(60.0, RETRY_WAIT_MAX))
+        paced(host, FETCH_GAP)
+        body, code, err, hdr = curl(target)
     if code and not code.startswith("2"):
         emit(channel, "URL", url, f"HTTP {code} — fetch failed", f"{err}\n{body[:2000]}", target)
         return 5
@@ -249,24 +327,33 @@ def search(queries):
     if len(queries) > MAX_QUERIES:
         print(f"[capped at {MAX_QUERIES} queries per invocation; dropped: "
               f"{', '.join(queries[MAX_QUERIES:])}]", file=sys.stderr)
-    worst, stamp = 0, OUT / ".last-search"
+    worst = 0
     for query in queries[:MAX_QUERIES]:
-        try:                                  # pace consecutive calls, across invocations too
-            time.sleep(max(0.0, SEARCH_GAP - (time.time() - stamp.stat().st_mtime)))
-        except OSError:
-            pass
-        OUT.mkdir(parents=True, exist_ok=True)
-        stamp.touch()
+        # Escalate the gap after each suspected throttle, and keep escalating
+        # across invocations — a backoff that resets per process is no backoff.
+        gap = min(SEARCH_GAP * 4 ** strikes(), BACKOFF_MAX)
+        paced("ddgr", gap)
+        p, items = None, None
         try:
             p = subprocess.run(["ddgr", "--json", "-n", "8", query],
                                capture_output=True, text=True, timeout=60)
             items = json.loads(p.stdout)
         except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError):
-            items = None
+            pass
         if not items:
-            emit("ddgr-best-effort", "QUERY", query, "EMPTY-OR-THROTTLED (ambiguous)", THROTTLED)
+            # ddgr exits 0 and prints [] when DuckDuckGo soft-blocks, but says so
+            # on stderr. That line is the only thing that tells a throttle apart
+            # from a genuinely empty index — surface it instead of dropping it.
+            note = (p.stderr or "").strip() if p else "ddgr did not return within 60s"
+            hard = bool(re.search(r"HTTP Error|\b(202|403|429)\b|too many", note, re.I)) or not p
+            nxt = min(SEARCH_GAP * 4 ** strikes(1), BACKOFF_MAX)
+            emit("ddgr-best-effort", "QUERY", query,
+                 "THROTTLED (upstream said so)" if hard else "EMPTY-OR-THROTTLED (ambiguous)",
+                 THROTTLED + (f"\n\nUPSTREAM: {note}" if note else "")
+                 + f"\n\nBackoff: the next search cannot go out for {nxt:.0f}s (strike {strikes()}).")
             worst = 3
             continue
+        strikes(0)
         emit("ddgr-best-effort", "QUERY", query, f"OK ({len(items)} results)",
              "\n".join(f"{n}. {i.get('title', '')}\n   {i.get('url', '')}\n   {i.get('abstract', '')}"
                        for n, i in enumerate(items, 1)))

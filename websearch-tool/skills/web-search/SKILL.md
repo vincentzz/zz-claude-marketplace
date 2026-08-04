@@ -61,7 +61,13 @@ The two failure tags are not soft failures. The content does not exist in your c
 
 - **`RENDER_REQUIRED`** (exit 4) — the page is a JS shell and no headless browser was available. Report the URL as unretrieved. Offer the user the fix the script prints (`npm i -g playwright && npx playwright install chromium`; the first run downloads a ~150MB browser), or ask them for a JS-free equivalent.
 - **`NO-BACKEND`** (exit 3) — `ddgr` is not installed, so no search is possible. Do not scrape Google or any other engine by hand. Tell the user plainly, and offer both working paths: they can give you a specific **URL** (fetch needs no setup at all), or install search with `brew install ddgr` (Linux: `pipx install ddgr`).
-- **`EMPTY-OR-THROTTLED`** (exit 3) — ddgr returned nothing parseable. This is **ambiguous**: either the query has no hits, or DuckDuckGo throttled the session. Never report it as "no results found" — the two mean opposite things. Retry once with different wording after a pause; if it repeats, stop searching and fetch a URL instead.
+- **`THROTTLED`** / **`EMPTY-OR-THROTTLED`** (exit 3) — ddgr returned nothing parseable. Never report either as "no results found": that asserts the web was searched and is empty, which may be the opposite of what happened. Say the search did not complete. `THROTTLED` means DuckDuckGo said so itself (its soft block is `HTTP Error 202: Accepted`, quoted back to you on the `UPSTREAM:` line); plain `EMPTY-OR-THROTTLED` means the two causes are genuinely indistinguishable. Either way, stop searching and fetch specific URLs instead — retrying in a loop only deepens the backoff.
+
+## Pacing — it will make you wait, on purpose
+
+This plugin is tuned so an unattended run never gets itself blocked, not so it finishes fast. Searches are spaced ~20s apart and requests to one host ~1.5s apart; the gaps are enforced by a lock shared across **every** agent on the machine, so a profile that fans out parallel scouts gets them queued rather than fired in a burst. After a suspected throttle the search gap escalates ×4 per strike (20s → 80s → 320s, capped at 600s) and persists across invocations — a fresh process does not reset it.
+
+So: a `search` call may simply sit there for a while. That is the script working. Do not "work around" it by launching more processes, and do not treat the wait as a hang. If you need it faster for a one-off interactive task, `WEB_SEARCH_GAP` and `WEB_FETCH_GAP` (seconds) override the defaults — but leave them alone for unattended work.
 
 ## Boundaries
 
