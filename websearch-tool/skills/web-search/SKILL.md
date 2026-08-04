@@ -1,6 +1,6 @@
 ---
 name: web-search
-description: Search the web or fetch a web page when the built-in WebSearch / WebFetch tools are unavailable, missing from the tool list, or returning errors — the normal case when the session runs against a non-Anthropic endpoint such as a local Ollama model (`ollama launch claude`) or an OpenAI-compatible proxy. Also use when a fetched page comes back as an empty JavaScript shell, or when you need something you cannot answer from training data: the current contents of a URL, a GitHub file or issue, the latest npm/PyPI/crates version, recent docs or release notes. Provides curl fetch (works with zero setup) plus best-effort ddgr search.
+description: Use this the moment a web lookup fails or is impossible — WebSearch or WebFetch returned an error, came back empty, timed out, was denied, or is not in your tool list at all. It applies regardless of *why*: a one-off tool failure on a normal Anthropic session counts just as much as a session running against a non-Anthropic endpoint (a local Ollama model, `ollama launch claude`, an OpenAI-compatible proxy) where those tools do not exist. Do not give up on a search, and do not answer from training data, before trying this. Also use when a fetched page comes back as an empty JavaScript shell, or when you need current facts training data cannot supply: the contents of a URL, a GitHub file or issue, the latest npm/PyPI/crates version, recent docs or release notes. Provides curl fetch (zero setup) plus best-effort ddgr search.
 ---
 
 # web-search · web access without the built-in tools

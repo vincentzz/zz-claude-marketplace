@@ -1,6 +1,6 @@
 {
   "name": "trade-study-cn",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "三角色选型评估 profile：analyst 审讯决策上下文，隔离的 scout 各深挖一个候选项，challenger 攻击综合结论。序数加权矩阵、证据带溯源、交付物 HTML + PDF + PPTX（中文版）。",
   "author": {
     "name": "Vincent"

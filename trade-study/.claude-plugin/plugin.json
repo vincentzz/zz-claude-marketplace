@@ -1,6 +1,6 @@
 {
   "name": "trade-study",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Three-role trade-study profile: analyst grills for decision context, isolated scouts deep-dive one candidate each, a challenger attacks the synthesis. Ordinal-weighted matrix, evidence with provenance, deliverables as HTML + PDF + PPTX.",
   "author": {
     "name": "Vincent"
