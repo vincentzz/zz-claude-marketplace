@@ -54,6 +54,7 @@ Every result carries one. It tells the reader whether the evidence is mechanical
 | `ddgr-best-effort` | Scraped search results. Titles and abstracts are **hints**, not evidence — fetch the URL before citing anything. |
 | `RENDER_REQUIRED` | **Nothing was retrieved.** See below. |
 | `NO-BACKEND` | **No search happened.** See below. |
+| `BACKOFF` | **The request was never sent** — still owing backoff from an earlier throttle. See below. |
 
 ## When it fails, say so
 
@@ -63,11 +64,17 @@ The two failure tags are not soft failures. The content does not exist in your c
 - **`NO-BACKEND`** (exit 3) — `ddgr` is not installed, so no search is possible. Do not scrape Google or any other engine by hand. Tell the user plainly, and offer both working paths: they can give you a specific **URL** (fetch needs no setup at all), or install search with `brew install ddgr` (Linux: `pipx install ddgr`).
 - **`THROTTLED`** / **`EMPTY-OR-THROTTLED`** (exit 3) — ddgr returned nothing parseable. Never report either as "no results found": that asserts the web was searched and is empty, which may be the opposite of what happened. Say the search did not complete. `THROTTLED` means DuckDuckGo said so itself (its soft block is `HTTP Error 202: Accepted`, quoted back to you on the `UPSTREAM:` line); plain `EMPTY-OR-THROTTLED` means the two causes are genuinely indistinguishable. Either way, stop searching and fetch specific URLs instead — retrying in a loop only deepens the backoff.
 
-## Pacing — it will make you wait, on purpose
+- **`BACKOFF`** (exit 3 for search, 5 for fetch) — the request was **never sent**, because an earlier throttle still owes more wait than one invocation will spend. Nothing is known about that query or URL. Do not answer as if it had run. Fetch is unaffected by a *search* backoff, so a specific URL is usually the way forward; the result names the seconds owed if you genuinely must wait.
+
+## Pacing — it waits, but it never hangs
 
 This plugin is tuned so an unattended run never gets itself blocked, not so it finishes fast. Searches are spaced ~20s apart and requests to one host ~1.5s apart; the gaps are enforced by a lock shared across **every** agent on the machine, so a profile that fans out parallel scouts gets them queued rather than fired in a burst. After a suspected throttle the search gap escalates ×4 per strike (20s → 80s → 320s, capped at 600s) and persists across invocations — a fresh process does not reset it.
 
-So: a `search` call may simply sit there for a while. That is the script working. Do not "work around" it by launching more processes, and do not treat the wait as a hang. If you need it faster for a one-off interactive task, `WEB_SEARCH_GAP` and `WEB_FETCH_GAP` (seconds) override the defaults — but leave them alone for unattended work.
+So a `search` call may sit there for a few tens of seconds. That is the script working — do not "work around" it by launching more processes.
+
+But it will **never** sit longer than its own time budget (~100s, under the 120s default your Bash call gets). Past that it stops waiting and returns a `BACKOFF` result naming the seconds owed. That is deliberate: a call killed at a tool timeout returns you *nothing at all* — no channel, no reason, no number — which is the one outcome this plugin exists to prevent. A short honest report beats a long silent death.
+
+`WEB_SEARCH_GAP`, `WEB_FETCH_GAP`, and `WEB_TIME_BUDGET` (all seconds) override the defaults for interactive one-offs. Leave them alone for unattended work.
 
 ## Boundaries
 

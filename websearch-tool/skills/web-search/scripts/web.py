@@ -25,6 +25,18 @@ SEARCH_GAP = float(os.environ.get("WEB_SEARCH_GAP", 20))    # s between any two 
 FETCH_GAP = float(os.environ.get("WEB_FETCH_GAP", 1.5))     # s between two hits on one host
 BACKOFF_MAX = 600     # ceiling on the escalating gap after suspected throttling
 RETRY_WAIT_MAX = 120  # obey Retry-After up to here; past it, report instead of sleeping
+# A caller runs this script from a Bash tool whose default timeout is 120s. Being
+# killed at that ceiling returns *no output at all* — no channel, no backoff line,
+# nothing — which inverts this plugin's whole contract exactly when it matters. So
+# the invocation budgets its own time and reports what it did not do, rather than
+# sleeping into a silent kill. Same principle the 429 branch already follows.
+BUDGET = float(os.environ.get("WEB_TIME_BUDGET", 100))
+DDGR_TIMEOUT = 45     # ddgr's own ceiling, reserved out of the budget before waiting
+# A block that expired hours ago must not tax an unrelated run tomorrow: strikes
+# older than this are treated as spent. The one real block measured here outlasted
+# 7 minutes, so 30 leaves margin without keeping a dead penalty alive.
+STRIKE_TTL = float(os.environ.get("WEB_STRIKE_TTL", 1800))
+STARTED = time.time()
 PRINT_CAP = 20000     # chars echoed to stdout; the SAVED file always has it all
 SHELL_MIN = 600       # less extracted text than this ⇒ *maybe* a JS shell
 JS_MARK = re.compile(r"enable JavaScript|requires JavaScript|JavaScript is (?:required|disabled)", re.I)
@@ -56,6 +68,21 @@ not an empty index. With no UPSTREAM line the two remain indistinguishable.
 
 Do not retry in a loop — the backoff below is enforced whether you wait or not.
 If it repeats, stop searching and fetch specific URLs instead."""
+
+BACKOFF = """No search was sent. An earlier search was throttled, and {owed:.0f}s of that
+backoff is still owed — longer than this invocation will block, because being
+killed at a tool timeout would return you nothing at all.
+
+Nothing was retrieved and nothing is known about {n} quer(y/ies) you asked for.
+Do not report an answer as if the search had run.
+
+What to do instead, in order of preference:
+  1. Fetch specific URLs — fetch has its own, much shorter pacing and is
+     unaffected by a search backoff:
+         python3 {me} fetch <url>
+  2. Ask the user for a source, or answer from what you already retrieved.
+  3. Only if searching is genuinely required, wait {owed:.0f}s and re-run. The
+     wait is enforced either way, so an immediate retry only wastes a turn."""
 
 RENDER_REQ = """This page is a JavaScript shell: curl retrieved markup but no usable text, and
 no headless browser was available to render it.
@@ -118,19 +145,37 @@ def emit(channel, key, subject, status, body, resolved=None):
     print("=== WEB RESULT ===\n" + head + "\n" + shown)
 
 
-def locked(name):
+def left():
+    """Seconds of this invocation's self-imposed budget still unspent."""
+    return BUDGET - (time.time() - STARTED)
+
+
+def locked(name, deadline=None):
     """Open `name` under an exclusive flock. Every reader and writer of a shared
     state file goes through here, so read-modify-write is atomic between
     processes. flock is released by the kernel when the fd closes or the process
     dies, so a killed agent cannot strand the lock. (Local FS only — $TMPDIR is,
-    but flock over NFS/SMB is not dependable.)"""
+    but flock over NFS/SMB is not dependable.)
+
+    With a deadline the wait is bounded and returns None instead of blocking:
+    a blocking LOCK_EX behind another agent's 600s hold is a silent kill."""
     OUT.mkdir(parents=True, exist_ok=True)
     fd = os.open(OUT / re.sub(r"[^A-Za-z0-9._-]+", "_", name), os.O_CREAT | os.O_RDWR, 0o644)
-    fcntl.flock(fd, fcntl.LOCK_EX)
-    return fd
+    if deadline is None:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        return fd
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return fd
+        except BlockingIOError:
+            if time.time() >= deadline:
+                os.close(fd)
+                return None
+            time.sleep(0.25)
 
 
-def paced(key, gap):
+def paced(key, gap, budget=None):
     """Space out requests of one kind across every process on this machine.
 
     The lock is held *across* the sleep, so N agents starting at the same instant
@@ -140,14 +185,27 @@ def paced(key, gap):
 
     `gap` may be a callable, evaluated *under* the lock: a process that queued
     behind a 300s wait must honour the backoff as it stands when its turn comes,
-    not the shorter one it computed before joining the queue."""
-    fd = locked(f".pace-{key}")
+    not the shorter one it computed before joining the queue.
+
+    Returns 0.0 when the caller may proceed, or the seconds still owed when
+    honouring the gap would outlast `budget`. Owed time is for *reporting*, not
+    for sleeping — the caller must emit and stop. Nothing is stamped in that
+    case, so giving up costs the next caller nothing."""
+    budget = left() if budget is None else budget
+    deadline = time.time() + budget
+    fd = locked(f".pace-{key}", deadline)
+    if fd is None:                          # another agent holds it past our budget
+        return max(1.0, gap() if callable(gap) else gap)
     try:
         st = os.fstat(fd)
         if st.st_size:                      # size 0 ⇒ first ever call, no wait owed
-            g = gap() if callable(gap) else gap
-            time.sleep(max(0.0, g - (time.time() - st.st_mtime)))
+            owed = (gap() if callable(gap) else gap) - (time.time() - st.st_mtime)
+            if owed > deadline - time.time():
+                return owed
+            if owed > 0:
+                time.sleep(owed)
         os.pwrite(fd, b"x", 0)              # stamp = when this request goes out
+        return 0.0
     finally:
         os.close(fd)                        # releases the lock
 
@@ -164,9 +222,14 @@ def strikes(delta=None):
     Lock order is always pace → strikes (never the reverse), so no deadlock."""
     fd = locked(".ddgr-strikes")
     try:
+        st = os.fstat(fd)
         try:
             n = int(os.pread(fd, 32, 0).decode().strip() or 0)
         except ValueError:
+            n = 0
+        # Decay by the file's own mtime. A pure read never rewrites it, so the
+        # clock keeps running instead of being refreshed by whoever looks.
+        if st.st_size and time.time() - st.st_mtime > STRIKE_TTL:
             n = 0
         if delta is not None:
             n = 0 if delta == 0 else n + delta
@@ -258,7 +321,8 @@ def llms_hint(url):
         return note if cache.read_text() == "1" else ""
     except OSError:
         pass
-    paced(p.netloc, FETCH_GAP)
+    if paced(p.netloc, FETCH_GAP, budget=min(15.0, left() - 20)):
+        return ""                     # a nicety, never worth spending the budget on
     body, code, _, _ = curl(probe, timeout=8)
     ok = code.startswith("2") and bool(body.strip()) and "<html" not in body[:400].lower()
     cache.write_text("1" if ok else "0")
@@ -299,21 +363,34 @@ def fetch(url):
             target, channel = re.sub(pat, rep, url), "raw-api"
             break
     host = urlsplit(target).netloc
-    paced(host, FETCH_GAP)
+    owed = paced(host, FETCH_GAP, budget=left() - 45)   # 45s reserved for the fetch itself
+    if owed:
+        emit("BACKOFF", "URL", url, f"not sent — {host} is busy with other agents",
+             f"Could not get a turn on {host} within this invocation's budget.\n"
+             f"Nothing was retrieved. Retry in ~{owed:.0f}s, or fetch a different host.", target)
+        return 5
     body, code, err, hdr = curl(target)
     if code == "403":                 # a UA block, not a rate limit: ask again as a browser
-        paced(host, FETCH_GAP)
+        paced(host, FETCH_GAP, budget=left() - 45)
         body, code, err, hdr = curl(target, ua=BROWSER_UA)
     if code == "429":                 # an explicit "slow down" — the one signal never to ignore
         wait = retry_after(hdr)
-        if wait is not None and wait > RETRY_WAIT_MAX:
+        # Bounded by what is left of the budget, not just by RETRY_WAIT_MAX: sleeping
+        # into a tool timeout would discard this report along with everything else.
+        room = min(RETRY_WAIT_MAX, left() - 45)
+        if wait is not None and wait > room:
             emit(channel, "URL", url, f"HTTP 429 — rate limited, Retry-After {wait:.0f}s",
-                 f"{host} asked for a {wait:.0f}s pause, longer than this script will block.\n"
+                 f"{host} asked for a {wait:.0f}s pause, longer than this invocation will block.\n"
                  f"Nothing was retrieved. Wait it out before touching {host} again;\n"
                  f"do not retry in a loop, and do not report this as 'page not found'.", target)
             return 5
-        time.sleep(wait if wait is not None else min(60.0, RETRY_WAIT_MAX))
-        paced(host, FETCH_GAP)
+        if room <= 0:
+            emit(channel, "URL", url, "HTTP 429 — rate limited, no budget left to wait",
+                 f"{host} is rate limiting and this invocation has no time left to honour it.\n"
+                 f"Nothing was retrieved. Re-run in a minute; do not retry in a loop.", target)
+            return 5
+        time.sleep(wait if wait is not None else min(60.0, room))
+        paced(host, FETCH_GAP, budget=left() - 45)
         body, code, err, hdr = curl(target)
     if code and not code.startswith("2"):
         emit(channel, "URL", url, f"HTTP {code} — fetch failed", f"{err}\n{body[:2000]}", target)
@@ -359,11 +436,20 @@ def search(queries):
         # across invocations — a backoff that resets per process is no backoff.
         # Deliberately a lambda: the strike count is read when our turn actually
         # comes, so a throttle recorded while we queued still lengthens our wait.
-        paced("ddgr", lambda: min(SEARCH_GAP * 4 ** strikes(), BACKOFF_MAX))
+        # Reserve room for the search itself — capped at DDGR_TIMEOUT, but never
+        # more than half of what is left, so a small WEB_TIME_BUDGET degrades into
+        # a short wait rather than into "always report, never search".
+        owed = paced("ddgr", lambda: min(SEARCH_GAP * 4 ** strikes(), BACKOFF_MAX),
+                     budget=left() - min(DDGR_TIMEOUT, left() / 2))
+        if owed:
+            emit("BACKOFF", "QUERY", query, f"not sent — {owed:.0f}s of backoff still owed",
+                 BACKOFF.format(owed=owed, me=ME, n=len(queries[:MAX_QUERIES])))
+            return 3
         p, items = None, None
+        wait = max(5.0, min(DDGR_TIMEOUT, left()))
         try:
             p = subprocess.run(["ddgr", "--json", "-n", "8", query],
-                               capture_output=True, text=True, timeout=60)
+                               capture_output=True, text=True, timeout=wait)
             items = json.loads(p.stdout)
         except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError):
             pass
@@ -371,7 +457,7 @@ def search(queries):
             # ddgr exits 0 and prints [] when DuckDuckGo soft-blocks, but says so
             # on stderr. That line is the only thing that tells a throttle apart
             # from a genuinely empty index — surface it instead of dropping it.
-            note = (p.stderr or "").strip() if p else "ddgr did not return within 60s"
+            note = (p.stderr or "").strip() if p else f"ddgr did not return within {wait:.0f}s"
             hard = bool(re.search(r"HTTP Error|\b(202|403|429)\b|too many", note, re.I)) or not p
             nxt = min(SEARCH_GAP * 4 ** strikes(1), BACKOFF_MAX)
             emit("ddgr-best-effort", "QUERY", query,
