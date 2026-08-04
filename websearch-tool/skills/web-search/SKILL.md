@@ -12,7 +12,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/web-search/scripts/web.py" fetch  "<URL>"
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/web-search/scripts/web.py" search "<QUERY>"
 ```
 
-Saved files land in `$TMPDIR/claude-web/` (on Linux, `/tmp/claude-web/`), named `<date>-<channel>-<slug>.txt`. The exact path is printed on the `SAVED:` line of every result — quote that path when you hand results to another agent or cite them later.
+**Run those exact commands. Do not call `ddgr`, `curl`, or a headless browser yourself** — not as a shortcut, not to "check something quickly". Every safeguard lives in the script, not in the tools it wraps: request pacing shared with every other agent on this machine, escalating backoff after a throttle, `Retry-After` handling, and the `CHANNEL`/date/`SAVED` provenance line your study needs. A bare `ddgr` call bypasses all of it and can get **the whole machine** soft-blocked for the other agents — which is how these tools fail in practice, not by erroring.
+
+Each call is **synchronous**: it returns when the result is ready. Nothing runs in the background, so there is never a search to work on "while" you do something else.
+
+Saved files land in `/tmp/claude-web-<uid>/`, named `<date>-<channel>-<slug>.txt`. The exact path is printed on the `SAVED:` line of every result — quote that path when you hand results to another agent or cite them later.
 
 ## Which tier to use
 

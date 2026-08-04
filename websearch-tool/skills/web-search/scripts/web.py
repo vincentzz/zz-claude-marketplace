@@ -15,7 +15,32 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
-OUT = Path(tempfile.gettempdir()) / "claude-web"
+def _state_dir():
+    """Machine-stable, NOT `tempfile.gettempdir()`.
+
+    The gaps and the strike count are only meaningful if every agent on this
+    machine reads and locks the *same* files. `tempfile.gettempdir()` honours
+    `$TMPDIR`, which on macOS is a per-user, sometimes per-session sandbox path
+    (`/var/folders/<hash>/T/`) — so agents could each land in a private
+    directory and the "machine-global" pacing would silently become per-agent,
+    which is no pacing at all in exactly the fan-out case it exists for.
+
+    `/tmp` is shared but world-writable, so the directory is per-uid and 0700,
+    and we refuse a directory we do not own rather than trusting it."""
+    override = os.environ.get("WEB_STATE_DIR")
+    if override:
+        return Path(override)
+    base = Path("/tmp") / f"claude-web-{os.getuid()}"
+    try:
+        base.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if base.stat().st_uid != os.getuid():        # someone else got there first
+            raise PermissionError(f"{base} is not owned by uid {os.getuid()}")
+    except OSError:
+        return Path(tempfile.gettempdir()) / "claude-web"   # degraded: pacing is local
+    return base
+
+
+OUT = _state_dir()
 TODAY = datetime.now().strftime("%Y-%m-%d")
 MAX_QUERIES = 3       # per invocation — DuckDuckGo throttles bursts
 # Pacing is tuned for unattended availability, not for throughput: an agent that
