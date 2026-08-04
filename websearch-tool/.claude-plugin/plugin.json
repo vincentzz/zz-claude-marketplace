@@ -1,6 +1,6 @@
 {
   "name": "websearch-tool",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Utility: web search and page fetch that survive losing the built-in WebSearch/WebFetch tools — curl with JS-free URL rewrites, best-effort ddgr search, headless render only when a page proves to be a JS shell. Always-on companion to the profile plugins in this marketplace.",
   "author": {
     "name": "Vincent"

@@ -1,4 +1,11 @@
 # Changelog
+## 0.1.2 (websearch-tool)
+- Finished the concurrency work 0.1.1 started. The pace lock was correct, but two *other* pieces of shared state were still racing, and both errors shortened the backoff rather than lengthening it — the wrong direction for a plugin whose job is to stay unblocked.
+- **Strike counter was an unlocked read-modify-write.** 20 concurrent increments landed as 18. Worse, `write_text` truncates before writing, so a concurrent reader could catch the file empty and read 0 — silently resetting the backoff that 0.1.1 advertised as persistent (measured: 216 bad reads in 8000). Now flock + `pread`/`pwrite` on the locked fd: 20/20 across five runs, 0 bad reads in 8000.
+- **The gap was computed before joining the lock queue.** A process that queued behind a 300s wait used the strike count from when it arrived, ignoring throttles recorded while it waited. `paced()` now takes a callable evaluated under the lock.
+- Result files are written to a temp name and `os.replace`d, so a concurrent agent reading a `SAVED:` path never sees a half-written file.
+- Documented lock order (pace → strikes, never the reverse) and the flock caveat: fine on a local `$TMPDIR`, not dependable over NFS/SMB.
+
 ## 0.1.1 (websearch-tool)
 - Retuned for **unattended availability over throughput**: an agent that gets itself blocked at 03:00 has failed; one that took 20s longer has not. Search gap 2.5s → **20s**, plus a new **1.5s per-host gap on fetch** (there was none). Both override via `WEB_SEARCH_GAP` / `WEB_FETCH_GAP`.
 - **Fixed a race that defeated the pacing entirely.** The old stamp file was read without a lock, so N agents starting together all saw a stale timestamp and fired simultaneously — precisely the burst that gets a session blocked, and precisely what trade-study's parallel scouts do. Pacing now holds an `flock` *across* the sleep, so concurrent processes queue one gap apart. Measured: 5 concurrent searches went out at +1.4/4.1/6.3/9.3/12.3s under a 3s gap.

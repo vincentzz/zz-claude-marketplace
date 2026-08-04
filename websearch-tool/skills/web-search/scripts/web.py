@@ -110,10 +110,24 @@ def emit(channel, key, subject, status, body, resolved=None):
         head.append(f"RESOLVED: {resolved}")
     head += [f"RETRIEVED: {TODAY}", f"STATUS: {status}", f"SAVED: {path}", "---"]
     head = "\n".join(head)
-    path.write_text(head + "\n" + body)
+    tmp = path.with_suffix(f".{os.getpid()}.part")   # atomic: a concurrent agent
+    tmp.write_text(head + "\n" + body)               # reading SAVED never sees a
+    os.replace(tmp, path)                            # half-written result file
     shown = body if len(body) <= PRINT_CAP else (
         body[:PRINT_CAP] + f"\n... [stdout truncated at {PRINT_CAP} chars — full text in SAVED]")
     print("=== WEB RESULT ===\n" + head + "\n" + shown)
+
+
+def locked(name):
+    """Open `name` under an exclusive flock. Every reader and writer of a shared
+    state file goes through here, so read-modify-write is atomic between
+    processes. flock is released by the kernel when the fd closes or the process
+    dies, so a killed agent cannot strand the lock. (Local FS only — $TMPDIR is,
+    but flock over NFS/SMB is not dependable.)"""
+    OUT.mkdir(parents=True, exist_ok=True)
+    fd = os.open(OUT / re.sub(r"[^A-Za-z0-9._-]+", "_", name), os.O_CREAT | os.O_RDWR, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    return fd
 
 
 def paced(key, gap):
@@ -122,15 +136,17 @@ def paced(key, gap):
     The lock is held *across* the sleep, so N agents starting at the same instant
     queue up one gap apart instead of all reading a stale timestamp and firing
     together — the failure mode that matters when a profile fans out parallel
-    scouts. Waiting is the cheap outcome here; being throttled is the expensive one."""
-    OUT.mkdir(parents=True, exist_ok=True)
-    stamp = OUT / f".pace-{re.sub(r'[^A-Za-z0-9._-]+', '_', key)}"
-    fd = os.open(stamp, os.O_CREAT | os.O_RDWR, 0o644)
+    scouts. Waiting is the cheap outcome here; being throttled is the expensive one.
+
+    `gap` may be a callable, evaluated *under* the lock: a process that queued
+    behind a 300s wait must honour the backoff as it stands when its turn comes,
+    not the shorter one it computed before joining the queue."""
+    fd = locked(f".pace-{key}")
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
         st = os.fstat(fd)
         if st.st_size:                      # size 0 ⇒ first ever call, no wait owed
-            time.sleep(max(0.0, gap - (time.time() - st.st_mtime)))
+            g = gap() if callable(gap) else gap
+            time.sleep(max(0.0, g - (time.time() - st.st_mtime)))
         os.pwrite(fd, b"x", 0)              # stamp = when this request goes out
     finally:
         os.close(fd)                        # releases the lock
@@ -138,17 +154,27 @@ def paced(key, gap):
 
 def strikes(delta=None):
     """Consecutive suspected-throttle events, persisted so a fresh invocation
-    does not reset the backoff and walk straight back into the wall."""
-    f = OUT / ".ddgr-strikes"
+    does not reset the backoff and walk straight back into the wall.
+
+    Read-modify-write happens under the lock and writes go through pwrite on the
+    locked fd — an unlocked `read_text`/`write_text` pair loses concurrent
+    increments and lets a reader catch the file mid-truncate, and both errors
+    shorten the backoff rather than lengthen it.
+
+    Lock order is always pace → strikes (never the reverse), so no deadlock."""
+    fd = locked(".ddgr-strikes")
     try:
-        n = int(f.read_text())
-    except (OSError, ValueError):
-        n = 0
-    if delta is not None:
-        n = 0 if delta == 0 else n + delta
-        OUT.mkdir(parents=True, exist_ok=True)
-        f.write_text(str(n))
-    return n
+        try:
+            n = int(os.pread(fd, 32, 0).decode().strip() or 0)
+        except ValueError:
+            n = 0
+        if delta is not None:
+            n = 0 if delta == 0 else n + delta
+            os.ftruncate(fd, 0)
+            os.pwrite(fd, str(n).encode(), 0)
+        return n
+    finally:
+        os.close(fd)
 
 
 def curl(url, timeout=40, ua=None):
@@ -331,8 +357,9 @@ def search(queries):
     for query in queries[:MAX_QUERIES]:
         # Escalate the gap after each suspected throttle, and keep escalating
         # across invocations — a backoff that resets per process is no backoff.
-        gap = min(SEARCH_GAP * 4 ** strikes(), BACKOFF_MAX)
-        paced("ddgr", gap)
+        # Deliberately a lambda: the strike count is read when our turn actually
+        # comes, so a throttle recorded while we queued still lengthens our wait.
+        paced("ddgr", lambda: min(SEARCH_GAP * 4 ** strikes(), BACKOFF_MAX))
         p, items = None, None
         try:
             p = subprocess.run(["ddgr", "--json", "-n", "8", query],
