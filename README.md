@@ -6,10 +6,10 @@ Vincent's [Claude Code](https://code.claude.com) plugin marketplace.
 
 | Plugin | Version | Description |
 |---|---|---|
-| [dev-pipeline](./dev-pipeline/) | 0.9.5 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
-| [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.5 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
-| [trade-study](./trade-study/) | 0.1.1 | A three-role trade-study pipeline for decision-making: **analyst / scout / challenger**. Isolated per-candidate research with source provenance, ordinal-weighted criteria matrix, adversarial review, deliverables as HTML + PDF + PPTX. |
-| [trade-study-cn](./trade-study-cn/) | 0.1.1 | 中文版 of trade-study — same pipeline with all agents, skills, and docs in Chinese. |
+| [dev-pipeline](./dev-pipeline/) | 0.9.6 | A five-role software development pipeline: **architect / qa / dev** plus two read-only reviewers. Spec-driven, with mechanical acceptance (a single `acceptance.sh` exit code), review gates, and a clear accountability loop. Language-agnostic — build conventions are declared per project. |
+| [dev-pipeline-cn](./dev-pipeline-cn/) | 0.9.6 | 中文版 of dev-pipeline — same pipeline with all agents, skills, and docs in Chinese. |
+| [trade-study](./trade-study/) | 0.1.2 | A three-role trade-study pipeline for decision-making: **analyst / scout / challenger**. Isolated per-candidate research with source provenance, ordinal-weighted criteria matrix, adversarial review, deliverables as HTML + PDF + PPTX. |
+| [trade-study-cn](./trade-study-cn/) | 0.1.2 | 中文版 of trade-study — same pipeline with all agents, skills, and docs in Chinese. |
 | [profile-switcher](./profile-switcher/) | 0.9.6 | Always-on utility. `/use-profile` binds, switches, or unbinds the project's profile plugin: enables exactly one (explicit `false` for siblings) and pins its entry agent as the project default; unbind returns the project to plain Claude. |
 | [websearch-tool](./websearch-tool/) | 0.1.5 | Always-on utility. Web search and page fetch that keep working when the built-in `WebSearch`/`WebFetch` tools are gone — the normal case under a non-Anthropic provider. Paced to stay unblocked in unattended runs. See [Web access without the built-in tools](#web-access-without-the-built-in-tools). |
 
