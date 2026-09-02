@@ -4,7 +4,7 @@ This repo runs a three-stage development pipeline: **architect** (the main sessi
 
 Language convention: documents (spec, notes, reviews, completion reports) are written in English; **code, identifiers, and in-code comments are always English**, as are commands and status values.
 
-Build conventions are declared in the **project-side CLAUDE.local.md** (language baseline, full-test command, per-task test selection mechanism, unimplemented stub) — switching languages only touches the project shim, this protocol is language-agnostic at the mechanical layer, and every judgment converges on the `acceptance.sh` exit code. Wherever the text below says "build conventions", it means that block in the project shim.
+Build conventions are declared in the **project-side CLAUDE.local.md** (language baseline, full-test command, per-task test selection mechanism, unimplemented stub, ticket-only slot) — switching languages only touches the project shim, this protocol is language-agnostic at the mechanical layer, and every judgment converges on the `acceptance.sh` exit code. Wherever the text below says "build conventions", it means that block in the project shim.
 
 ## Directory Contract
 
@@ -16,7 +16,7 @@ tasks/specs/<id>.html             Task spec (architect is the single writer)
 tasks/specs/<id>/                 Resources referenced by the spec (images, etc.)
 tasks/specs/<id>/acceptance.sh    Sole entry point for mechanical acceptance (delivered by QA): exit 0 ⟺ all ACs pass
 tasks/specs/<id>/<agent>/         Per-role notes for this task (notes.md, review-N.md)
-tasks/specs/_template.html        Spec template; _example.html is a filled-in sample
+tasks/specs/_template.html        Spec template (instantiated by taskctl add)
 .worktrees/<id>                   Task worktree; branch task/<id>; created off the baseline branch (pinned by architect at dispatch)
 tasks/specs/<id>/base-branch      Baseline branch name (written by architect when creating the tree; the one merge reference for the whole flow)
 .claude/pipeline/budget.json      Quota data written to disk by statusline (data source for the token-budget gate)
@@ -59,8 +59,8 @@ Inside a subagent, `cd` **does not persist across Bash calls**. Any command invo
 ## Git Contract
 
 - **Baseline branch** = the branch architect is on at dispatch time, pinned in `tasks/specs/<id>/base-branch`; the worktree is created from it, freshen merges from it, and the acceptance gate merges back into it. Merging into shared branches such as develop/main is **the team CI/CD's jurisdiction**, and the harness does not overstep — green inside the gate is your promise about your own branch; green in CI is the team's promise about the shared branch.
-- Evergreen baseline: QA's red acceptance tests land only on the `task/<id>` branch, never on the baseline.
-- dev stops at delivering a green branch: one last merge of the baseline into the branch, run `acceptance.sh` green inside the tree, commit. The `--no-ff` merge back into the baseline, the post-merge **full test suite** (every task's tests, to catch cross-task regressions), `revert -m 1` on red, and tearing down the tree are all performed by architect at the acceptance gate.
+- Evergreen baseline: QA's red acceptance tests land only on the `task/<id>` branch, never on the baseline. Evergreen means green **for a stranger**: at every baseline commit the full-test command passes on a fresh clone with nothing but the toolchain. Checks that need more — build-process verification, real services, one-time state — are ticket-only and run solely through `acceptance.sh` (see the two kinds of check in `/mechanical-acceptance`).
+- dev stops at delivering a green branch: one last merge of the baseline into the branch, run `acceptance.sh` green inside the tree, commit. The `--no-ff` merge back into the baseline, the post-merge **full test suite** in a fresh clone (every task's regression tests, to catch cross-task regressions and anything that only worked on one machine), `revert -m 1` on red, and tearing down the tree are all performed by architect at the acceptance gate.
 - Resolve conflicts inside the worktree by tracing back to intent; settling for `--abort` is banned. Once resolved, acceptance must be re-run.
 
 ## Stop on Overstep

@@ -5,3 +5,4 @@
 - 语言基线：Java 17　· 全量测试命令：`mvn -q test`
 - 任务测试选取机制：JUnit5 `@Tag("task-<id>")` + `-Dgroups=task-<id>`
 - 未实现桩：抛 `UnsupportedOperationException("task <id> not implemented")`
+- 仅本任务测试槽位：无——仅本任务检查（构建/打包验证、真实服务、一次性状态）写成 acceptance.sh 的 shell 步骤；全量测试命令必须在只有工具链的全新检出上绿

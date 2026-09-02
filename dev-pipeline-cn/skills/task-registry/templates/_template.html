@@ -69,13 +69,14 @@
 
 <h2>3 · 验收条件（机械可判定）</h2>
 <table>
-<thead><tr><th>编号</th><th>行为描述</th><th>判定命令</th><th>通过标准</th><th>承载测试</th></tr></thead>
+<thead><tr><th>编号</th><th>行为描述</th><th>判定命令</th><th>通过标准</th><th>承载检查</th></tr></thead>
 <tbody>
-<tr><td>AC-1</td><td></td><td><code></code></td><td>exit 0</td><td><!-- 类#方法，由 QA 回填 --></td></tr>
+<tr><td>AC-1</td><td></td><td><code></code></td><td>exit 0</td><td><!-- 由 QA 回填：回归测试 类#方法，或 acceptance.sh 里的仅本任务步骤 --></td></tr>
 </tbody>
 </table>
 <p>唯一验收入口：<code>bash tasks/specs/{{TASK_ID}}/acceptance.sh &lt;checkout-dir&gt;</code>，
 <mark>exit 0 ⟺ 全部 AC 通过</mark>。脚本由 QA 交付。</p>
+<p>QA 把每条 AC 归为<em>回归测试</em>（进套件、每次未来构建都跑、只凭工具链在全新检出上必须过）或<em>仅本任务检查</em>（构建/打包验证、真实服务、一次性状态；只经 acceptance.sh 跑）。只能是仅本任务检查的 AC 就照此写——它的判定命令是那个 shell 步骤，不是测试。</p>
 
 <h2>4 · 非目标</h2>
 <p><!-- 明确不做的事，防止 dev 越权发挥（Speculative Generality 在此处被拒绝）。 --></p>

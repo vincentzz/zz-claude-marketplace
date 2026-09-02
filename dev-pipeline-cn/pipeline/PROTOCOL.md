@@ -4,7 +4,7 @@
 
 语言约定：文档（spec、notes、review、完成报告）用中文；**代码、标识符、代码内注释一律英文**，命令、状态值同英文。
 
-构建约定由**项目侧 CLAUDE.local.md** 声明（语言基线、全量测试命令、任务测试选取机制、未实现桩）——换语言只改项目垫片，本协议与机械层语言无关，一切判定收敛于 acceptance.sh 退出码。下文凡称"构建约定"皆指项目垫片中的该块。
+构建约定由**项目侧 CLAUDE.local.md** 声明（语言基线、全量测试命令、任务测试选取机制、未实现桩、仅本任务测试槽位）——换语言只改项目垫片，本协议与机械层语言无关，一切判定收敛于 acceptance.sh 退出码。下文凡称"构建约定"皆指项目垫片中的该块。
 
 ## 目录契约
 
@@ -16,7 +16,7 @@ tasks/specs/<id>.html             任务 spec（architect 单写者）
 tasks/specs/<id>/                 spec 引用的资源（图片等）
 tasks/specs/<id>/acceptance.sh    机械验收唯一入口（QA 交付）：exit 0 ⟺ 全部 AC 通过
 tasks/specs/<id>/<agent>/         该任务下各角色的笔记（notes.md、review-N.md）
-tasks/specs/_template.html        spec 模板；_example.html 为填好的示范
+tasks/specs/_template.html        spec 模板（taskctl add 自动实例化）
 .worktrees/<id>                   任务工作树；分支 task/<id>；自基线分支建（architect 派发时钉定）
 tasks/specs/<id>/base-branch      基线分支名（architect 建树时写入，全流程唯一合并参照）
 .claude/pipeline/budget.json      statusline 落盘的额度数据（token-budget 门禁数据源）
@@ -58,8 +58,8 @@ Dev : not-started ──派发dev──▶ in-progress ──交付绿分支+验
 ## Git 契约
 
 - **基线分支** = architect 派发时的当前分支，钉于 `tasks/specs/<id>/base-branch`；worktree 自它建、freshen 合它、验收门合回它。合并进 develop/main 等共享分支是**团队 CI/CD 的辖区**，harness 不越界——门内绿是你对自己分支的承诺，CI 绿才是团队对共享分支的承诺。
-- 基线常绿：QA 的红色验收测试只进 `task/<id>` 分支，不进基线。
-- dev 交付绿分支即止：最后一次把基线合入分支、树内跑 `acceptance.sh` 至绿、提交。`--no-ff` 合并回基线、合并后**全量测试**（所有任务的测试，防跨任务回归）、红则 `revert -m 1`、清树——全部由 architect 在验收门执行。
+- 基线常绿：QA 的红色验收测试只进 `task/<id>` 分支，不进基线。常绿的含义是**对陌生人绿**：基线每个提交上，全量测试命令在只有工具链的全新克隆里必须过。需要更多的检查——构建过程验证、真实服务、一次性状态——都是仅本任务检查，只经 `acceptance.sh` 运行（见 `/mechanical-acceptance` 的两类检查）。
+- dev 交付绿分支即止：最后一次把基线合入分支、树内跑 `acceptance.sh` 至绿、提交。`--no-ff` 合并回基线、合并后在全新克隆里跑**全量测试**（所有任务的回归测试，防跨任务回归，也防只在一台机器上过的东西）、红则 `revert -m 1`、清树——全部由 architect 在验收门执行。
 - 冲突在工作树内按意图溯源解决，禁 `--abort` 了事；解完必须重跑 acceptance。
 
 ## 越界即停

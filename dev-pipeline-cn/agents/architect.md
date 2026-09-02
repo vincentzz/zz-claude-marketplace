@@ -76,7 +76,7 @@ model: fable
   ① 门前检查：`git status --porcelain` 应为空——`tasks/**` 与 `.claude/**` 不入库后天然干净；不干净说明有人越界动了代码区，停下排查。
   ② `taskctl verify <id> --checkout .worktrees/<id>` —— 非 0：`set <id> dev in-progress`，verify 输出交重新唤起的 dev 返工。
   ③ 基线核对：`git branch --show-current` 必须等于 `tasks/specs/<id>/base-branch` 内容——不符即停（切回基线分支或向用户仲裁，绝不合进别的分支）。然后 `git merge --no-ff task/<id> -m "task <id>: merge"`。冲突（本拓扑下结构性罕见）：中止合并，出具意图简报重派 dev。
-  ④ 全量测试（构建约定（项目垫片 CLAUDE.local.md）的全量测试命令）——红：`git revert -m 1 HEAD` 立即恢复基线常绿，`set <id> dev in-progress`，失败输出连同对侧任务线索交 dev（大概率跨任务回归）。
+  ④ **全新克隆里**跑全量测试——克隆就是那个零知识开发者，只有被跟踪文件与工具链：`tmp=$(mktemp -d) && git clone -q . "$tmp/fresh" && (cd "$tmp/fresh" && <构建约定（项目垫片 CLAUDE.local.md）的全量测试命令>); rc=$?; rm -rf "$tmp"; echo "fresh-clone full test exit=$rc"`——红：`git revert -m 1 HEAD` 立即恢复基线常绿，`set <id> dev in-progress`，失败输出交 dev：要么是跨任务回归，要么是只在这台机器上过的检查（需要环境变量、本地文件、服务或构建本身的东西——那是被误放进套件的仅本任务检查，退回 qa 处理）。
   ⑤ `taskctl set <id> dev done`（内建 dev-reviewer 评审闭环校验）。
   ⑥ 清树：`git worktree remove .worktrees/<id>`、`git branch -d task/<id>`；回到 B。
 - 门禁被拒时优先补齐世界（让 qa/dev 完成真实闭环），`--force` 仅用于你仲裁后的特批，且必须在该任务的 architect notes 写明理由。

@@ -32,7 +32,6 @@ CLAUDE.md                         全角色共享协议（目录契约/状态机
 .claude/settings.json             statusline 接线 + git/mvn 免审批建议
 tasks/task.html                   任务总表（空模板）
 tasks/specs/_template.html        spec 模板（taskctl add 自动实例化）
-tasks/specs/_example.html + _example/acceptance.sh        填好的满分示范
 ```
 
 ## 安装
@@ -67,7 +66,7 @@ cd <任意项目根> && claude --agent architect --model fable # init 自动走
 
 ## 手工用户级安装（兜底路径）
 
-`bash install.sh user` 把机器件装进 `~/.claude/`（5 agents、12 skills、协议正文 `pipeline/PROTOCOL.md`、statusline；settings.json 只增不改——statusLine/attribution 两键缺才写）。此后**任意项目零拷贝接入**：项目根运行 `claude --agent architect --model fable`，architect 启动自检发现未初始化，即走 `/pipeline-init` 的幂等清单——创建 `CLAUDE.local.md` 垫片（`@~/.claude/pipeline/PROTOCOL.md`）、**构建约定审讯**（探测 pom.xml/Cargo.toml/build.zig… 给推荐答案，你逐项拍板：语言/全量测试命令/任务选取机制/未实现桩）、`taskctl` 自播种 `tasks/` 并写排除守护。重复 init 的合法输出是"已初始化，无事可做"。
+`bash install.sh user` 把机器件装进 `~/.claude/`（5 agents、12 skills、协议正文 `pipeline/PROTOCOL.md`、statusline；settings.json 只增不改——statusLine/attribution 两键缺才写）。此后**任意项目零拷贝接入**：项目根运行 `claude --agent architect --model fable`，architect 启动自检发现未初始化，即走 `/pipeline-init` 的幂等清单——创建 `CLAUDE.local.md` 垫片（`@~/.claude/pipeline/PROTOCOL.md`）、**构建约定审讯**（探测 pom.xml/Cargo.toml/build.zig… 给推荐答案，你逐项拍板：语言/全量测试命令/任务选取机制/未实现桩/仅本任务槽位）、`taskctl` 自播种 `tasks/` 并写排除守护。重复 init 的合法输出是"已初始化，无事可做"。
 
 memory 叠加语义：`~/.claude/CLAUDE.md`（若有）与项目 CLAUDE.md、CLAUDE.local.md **拼接**生效——协议正文因此不放 `~/.claude/CLAUDE.md`（会灌进所有无关项目），而由项目垫片按需 import。用户级的固有成本要知情：agents/skills 的描述在**所有**项目的系统提示词常驻（约数百 token），`qa`/`dev` 等名字出现在每个项目的 agent 列表——惰性无害，但存在。项目级整套拷贝（`install.sh project <根>`）仍保留，适合想逐项目魔改协议本身的场景。
 
@@ -115,7 +114,7 @@ memory 叠加语义：`~/.claude/CLAUDE.md`（若有）与项目 CLAUDE.md、CLA
 5. **Java 先测先行的编译问题 → 接口骨架前置。** 测试先于实现，在 Java 里意味着编译都过不了。解法内建于流程：spec 2.1 要求**可编译级完整**的接口签名（architect 交付），qa 第一步把它落成抛 `UnsupportedOperationException` 的骨架——于是"红"恒指**运行期红**，编译失败被定义为 qa 侧契约违规，责任清晰。
 
 6. **评审闭环进了状态门。** 你的原始设计里 reviewer 只"提建议"；这里把"建议已处置"变成了机械可判定事实：`taskctl set … done` 内建 review-check——对应 reviewer 的最新 `review-N.md` 必须无 `[BLOCKING]`、含逐字的「结论：无阻塞项」结论行、轮数 ≤2，否则状态推不动。评审仍由 qa/dev 在热上下文内环闭合（修复便宜），但**闭环与否的判定权收归门禁**——被审者可以干活，不能给自己签收。`--force` 是唯一逃生门，需在 notes 留痕。
-7. **合并权在验收门。** dev 交付绿分支即止；`--no-ff` 合并、合并后**全量测试**（所有任务的测试，防跨任务回归）、红则 revert、清树，全部由 architect 在门内执行。基线常绿从"事后检测"升级为"门口机械预防"，不可逆步骤与状态推进权收归同一角色。评审文件的防篡改留痕可选：在 `tasks/` 内自建私有 git（harness 不入团队库，见决策记录）。冲突解决权**不**随之上移：architect 不写代码的不变量保持绝对——冲突时它出具跨任务意图简报（两份 spec 都是它写的，这是它独有的合法知识），由 dev 在树内合成解法、重新过验收。
+7. **合并权在验收门。** dev 交付绿分支即止；`--no-ff` 合并、合并后在全新克隆里跑**全量测试**（所有任务的回归测试，防跨任务回归，也防只在一台机器上过的东西）、红则 revert、清树，全部由 architect 在门内执行。基线常绿从"事后检测"升级为"门口机械预防"，不可逆步骤与状态推进权收归同一角色。评审文件的防篡改留痕可选：在 `tasks/` 内自建私有 git（harness 不入团队库，见决策记录）。冲突解决权**不**随之上移：architect 不写代码的不变量保持绝对——冲突时它出具跨任务意图简报（两份 spec 都是它写的，这是它独有的合法知识），由 dev 在树内合成解法、重新过验收。
 
 8. **基线分支相对化 + worktree 生命周期归 architect。** harness 不预设 main：基线 = architect 派发那一刻的当前分支，钉于 `tasks/specs/<id>/base-branch`；建树在派发前由 architect 完成（消除"qa 运行时才建树、你中途切了分支"的基线竞态），验收门合回的也是这条基线，且门口机械核对当前分支 == 钉定基线。合并进 develop/main 等共享分支是团队 CI/CD 的辖区——门内绿是你对自己分支的承诺，CI 绿才是团队对共享分支的承诺。
 
@@ -125,11 +124,11 @@ memory 叠加语义：`~/.claude/CLAUDE.md`（若有）与项目 CLAUDE.md、CLA
 你:        做一个进程内令牌桶限流器
 architect: (grill-me 逐题对齐 → deep-module 设计 → taskctl add "令牌桶限流器" → 钉基线并建树)
            已注册 0001，spec 见 tasks/specs/0001.html。预算 OK，派发 qa。
-qa(后台):  进 architect 建好的 .worktrees/0001 → 落骨架 → 写 @Tag("task-0001") 测试 → acceptance.sh 红态
+qa(后台):  进 architect 建好的 .worktrees/0001 → 落骨架 → 逐条 AC 分类（回归测试 vs 仅本任务检查）→ 写 @Tag("task-0001") 测试 + acceptance.sh 里的仅本任务步骤 → 红态
            → 唤起 qa-reviewer → 处理 2 条 BLOCKING → 提交 → 交报告(含 AC↔测试映射、红态证据)
 architect: 报告齐备 → taskctl set 0001 test done（内建校验 qa-reviewer 评审闭环）→ 预算 OK → 派发 dev。
 dev(后台): merge 基线 → 逐条 AC 变绿 → dev-reviewer 闭环 → 再绿 → 交付绿分支（不合并）→ 交报告
-architect: 验收门：verify --checkout 绿 → --no-ff 合并 → 全量测试绿 → set 0001 dev done（内建评审闭环校验）→ 清树 → 汇报全绿。
+architect: 验收门：verify --checkout 绿 → --no-ff 合并 → 全新克隆里全量测试绿 → set 0001 dev done（内建评审闭环校验）→ 清树 → 汇报全绿。
 ```
 
 任何角色发现 spec 有误：停手、写 notes、上报仲裁（CLAUDE.md「越界即停」）。architect 改判会记入 spec 变更记录——判责链不断。
@@ -155,15 +154,14 @@ architect: 验收门：verify --checkout 绿 → --no-ff 合并 → 全量测试
 
 ## 移植到其他语言
 
-机械层（taskctl、task.html、门禁、预算、评审闭环）**语言无关**——一切判定收敛于 `acceptance.sh` 的退出码，脚本即语言接缝。移植面共五处，全部有单点定制位：
+机械层（taskctl、task.html、门禁、预算、评审闭环）**语言无关**——一切判定收敛于 `acceptance.sh` 的退出码，脚本即语言接缝。移植面共四处，全部有单点定制位：
 
-1. **CLAUDE.md 构建约定块**：语言基线、全量测试命令、任务测试选取机制、未实现桩（其余文件只引用此块，不重复语言细节）。
+1. **CLAUDE.md 构建约定块**：语言基线、全量测试命令、任务测试选取机制、未实现桩、仅本任务测试槽位（其余文件只引用此块，不重复语言细节）。
 2. **acceptance.sh 内容**：换成 `cargo test task_<id>` / `pytest -m task_<id>` / `cabal test --test-options="--pattern task-<id>"` 等——脚本契约（exit 0 ⟺ 全过、幂等、无交互）不变。
 3. **coding-standards 的语言特性节**：整节替换为目标语言实例，优先级与冷热分区不变。
 4. **settings.local.json permissions**：`Bash(mvn *)` 换成目标构建工具。
-5. **示例 spec**（`_example.html`）是 Java 示范，仅供参照，不必移植。
 
-红态规则的通用表述：构建必须过（编译型语言的编译、动态语言的加载/导入），红必须红在运行期断言或未实现桩。
+红态规则的通用表述：构建必须过（编译型语言的编译、动态语言的加载/导入），红必须红在运行期断言或未实现桩。全新检出不变量的通用表述：基线每个提交上，全量测试命令在只有工具链的全新克隆里绿；需要更多的东西都是仅本任务检查，住在 acceptance.sh 里。
 
 ## 本地降级模式（配额耗尽时全员切本地 LLM）
 
@@ -252,7 +250,7 @@ agents 的 `model:` 行是**层级名**，不是对你这台机器的断言：`f
 - **并发**：architect 硬编码 1 qa + 1 dev。加并发前先想清楚合并串行化（多 dev 同时回并基线需要合并队列）。
 - **阈值**：`PIPELINE_MIN_QUOTA_PCT`（20）、`PIPELINE_MIN_CONTEXT_PCT`（15）、`PIPELINE_BUDGET_MAX_AGE`（900s）。
 - **评审轮数**：上限 2 已由 taskctl 机械强制（`MAX_REVIEW_ROUNDS`）；agent 文件里的"至多两轮"只是同一契约的提示语。
-- **验收命令形态**：示例按 Maven + JUnit5 `@Tag`；换构建体系只需改 `_template.html` 第 3 节示意与 `_example/acceptance.sh`。
+- **验收命令的形状**：示例用 Maven + JUnit5 `@Tag`；换构建系统只需改构建约定块与 `/mechanical-acceptance` 里的草图。跨语言不变的是这条分界：回归测试每次构建都跑、必须在全新检出上过；仅本任务检查（构建/打包验证、真实服务、一次性状态）只经 acceptance.sh 跑。
 
 ## 已知坑
 

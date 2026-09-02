@@ -77,13 +77,14 @@ escalate per "stop on overstep"; never lift the ban on your own.</p>
 
 <h2>3 · Acceptance Criteria (mechanically decidable)</h2>
 <table>
-<thead><tr><th>ID</th><th>Behavior</th><th>Decision command</th><th>Pass criterion</th><th>Carrying test</th></tr></thead>
+<thead><tr><th>ID</th><th>Behavior</th><th>Decision command</th><th>Pass criterion</th><th>Carrying check</th></tr></thead>
 <tbody>
-<tr><td>AC-1</td><td></td><td><code></code></td><td>exit 0</td><td><!-- Class#method, filled in by QA --></td></tr>
+<tr><td>AC-1</td><td></td><td><code></code></td><td>exit 0</td><td><!-- filled in by QA: regression test Class#method, or ticket-only step in acceptance.sh --></td></tr>
 </tbody>
 </table>
 <p>The only acceptance entry point: <code>bash tasks/specs/{{TASK_ID}}/acceptance.sh &lt;checkout-dir&gt;</code>,
 <mark>exit 0 ⟺ all ACs pass</mark>. The script is delivered by QA.</p>
+<p>QA classifies every AC as a <em>regression test</em> (joins the suite, runs on every future build, must pass on a fresh checkout with nothing but the toolchain) or a <em>ticket-only check</em> (build/packaging verification, real services, one-time state; runs only through acceptance.sh). Write an AC that can only be a ticket-only check as such — its decision command is the shell step, not a test.</p>
 
 <h2>4 · Non-Goals</h2>
 <p><!-- What is explicitly out of scope, to keep dev from improvising beyond mandate

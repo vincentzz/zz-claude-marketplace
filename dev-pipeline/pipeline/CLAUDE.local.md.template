@@ -5,3 +5,4 @@ Build conventions (switching languages only touches this block; the mechanical l
 - Language baseline: Java 17 · Full-test command: `mvn -q test`
 - Per-task test selection: JUnit5 `@Tag("task-<id>")` + `-Dgroups=task-<id>`
 - Unimplemented stub: throw `UnsupportedOperationException("task <id> not implemented")`
+- Ticket-only slot: none — ticket-only checks (build/packaging verification, real services, one-time state) are shell steps in acceptance.sh; the full-test command must be green on a fresh checkout with nothing but the toolchain

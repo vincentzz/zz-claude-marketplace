@@ -32,7 +32,6 @@ CLAUDE.md                         Shared protocol for all roles (directory contr
 .claude/settings.json             statusline wiring + suggested git/mvn approval bypass
 tasks/task.html                   Task registry (empty template)
 tasks/specs/_template.html        spec template (auto-instantiated by taskctl add)
-tasks/specs/_example.html + _example/acceptance.sh        A filled-in, full-marks example
 ```
 
 ## Installation
@@ -67,7 +66,7 @@ Upgrade: `claude plugin marketplace update zz-claude-marketplace` (or autoUpdate
 
 ## Manual user-level install (fallback path)
 
-`bash install.sh user` puts the machinery into `~/.claude/` (5 agents, 12 skills, the protocol text `pipeline/PROTOCOL.md`, the statusline; settings.json is only added to, never modified — the statusLine and attribution keys are written only if absent). After that, **any project plugs in with zero copying**: run `claude --agent architect --model fable` at the project root, architect's startup self-check finds the project uninitialized, and it runs `/pipeline-init`'s idempotent checklist — create the `CLAUDE.local.md` shim (`@~/.claude/pipeline/PROTOCOL.md`), run the **build-conventions interview** (probe pom.xml/Cargo.toml/build.zig… and propose answers you approve item by item: language / full-test command / task selection mechanism / unimplemented stub), then `taskctl` self-seeds `tasks/` and writes the exclusion guard. The legitimate output of a repeat init is "already initialized, nothing to do".
+`bash install.sh user` puts the machinery into `~/.claude/` (5 agents, 12 skills, the protocol text `pipeline/PROTOCOL.md`, the statusline; settings.json is only added to, never modified — the statusLine and attribution keys are written only if absent). After that, **any project plugs in with zero copying**: run `claude --agent architect --model fable` at the project root, architect's startup self-check finds the project uninitialized, and it runs `/pipeline-init`'s idempotent checklist — create the `CLAUDE.local.md` shim (`@~/.claude/pipeline/PROTOCOL.md`), run the **build-conventions interview** (probe pom.xml/Cargo.toml/build.zig… and propose answers you approve item by item: language / full-test command / task selection mechanism / unimplemented stub / ticket-only slot), then `taskctl` self-seeds `tasks/` and writes the exclusion guard. The legitimate output of a repeat init is "already initialized, nothing to do".
 
 memory stacking semantics: `~/.claude/CLAUDE.md` (if present) is **concatenated** with the project CLAUDE.md and CLAUDE.local.md — which is why the protocol text does not live in `~/.claude/CLAUDE.md` (it would pour into every unrelated project); the project shim imports it on demand. Know the inherent cost of the user-level install: the descriptions of the agents/skills sit permanently in the system prompt of **every** project (a few hundred tokens), and names like `qa`/`dev` appear in every project's agent list — inert and harmless, but present. The full per-project copy (`install.sh project <root>`) is still available, and suits anyone who wants to hack the protocol itself project by project.
 
@@ -115,7 +114,7 @@ Three takeaways: **the boundary is at file level, not directory level** — igno
 5. **Java's test-first compilation problem → interface skeleton up front.** Tests before implementation, in Java, means it won't even compile. The fix is built into the flow: spec 2.1 requires **compile-complete** interface signatures (delivered by architect), and qa's first step turns them into a skeleton that throws `UnsupportedOperationException` — so "red" always means **red at runtime**, and a compile failure is defined as a contract violation on qa's side. Accountability stays clear.
 
 6. **Review closure moved into the status gate.** In your original design reviewers only "made suggestions"; here "the suggestions have been dealt with" becomes a mechanically decidable fact: `taskctl set … done` has review-check built in — the corresponding reviewer's latest `review-N.md` must contain no `[BLOCKING]`, must include the verbatim conclusion line "Conclusion: no blocking items", and the round count must be ≤2, or the status won't move. Review closure still happens as an inner loop in qa/dev's hot context (fixes are cheap there), but **the verdict on whether it closed belongs to the gate** — the reviewed party may do the work, but may not sign for itself. `--force` is the only escape hatch, and it must leave a trace in notes.
-7. **Merge authority lives at the acceptance gate.** dev stops at delivering a green branch; the `--no-ff` merge, the **full test suite** after merging (every task's tests, to catch cross-task regressions), the revert on red, and the worktree teardown are all executed by architect inside the gate. The evergreen baseline is upgraded from "detected after the fact" to "mechanically prevented at the door", and irreversible steps and status-advancing authority collapse into one role. Tamper-evident history for review files is optional: stand up a private git inside `tasks/` (the harness stays out of the team repo, see the decision record). Conflict-resolution authority does **not** move up with it: architect's don't-write-code invariant stays absolute — on a conflict it issues a cross-task intent brief (it wrote both specs; that is knowledge only it legitimately has), and dev synthesizes the resolution inside the worktree and re-runs acceptance.
+7. **Merge authority lives at the acceptance gate.** dev stops at delivering a green branch; the `--no-ff` merge, the **full test suite** after merging, run in a fresh clone (every task's regression tests, to catch cross-task regressions and anything that only worked on one machine), the revert on red, and the worktree teardown are all executed by architect inside the gate. The evergreen baseline is upgraded from "detected after the fact" to "mechanically prevented at the door", and irreversible steps and status-advancing authority collapse into one role. Tamper-evident history for review files is optional: stand up a private git inside `tasks/` (the harness stays out of the team repo, see the decision record). Conflict-resolution authority does **not** move up with it: architect's don't-write-code invariant stays absolute — on a conflict it issues a cross-task intent brief (it wrote both specs; that is knowledge only it legitimately has), and dev synthesizes the resolution inside the worktree and re-runs acceptance.
 
 8. **Relative baseline branch + worktree lifecycle owned by architect.** The harness presumes no main: the baseline is whatever branch is current at the moment architect dispatches, pinned in `tasks/specs/<id>/base-branch`; the worktree is created by architect before dispatch (eliminating the "qa creates the tree at runtime, you switched branches in the meantime" baseline race); the acceptance gate merges back into that same baseline, and mechanically checks at the door that the current branch == the pinned baseline. Merging into shared branches like develop/main is your team's CI/CD jurisdiction — green inside the gate is your promise about your own branch; green in CI is the team's promise about the shared branch.
 
@@ -125,11 +124,11 @@ Three takeaways: **the boundary is at file level, not directory level** — igno
 you:        build me an in-process token-bucket rate limiter
 architect:  (grill-me aligns question by question → deep-module design → taskctl add "token-bucket rate limiter" → pin baseline, create worktree)
             Registered 0001, spec at tasks/specs/0001.html. Budget OK, dispatching qa.
-qa (bg):    enter architect's prepared .worktrees/0001 → lay down the skeleton → write @Tag("task-0001") tests → acceptance.sh red state
+qa (bg):    enter architect's prepared .worktrees/0001 → lay down the skeleton → classify each AC (regression test vs ticket-only check) → write @Tag("task-0001") tests + ticket-only steps in acceptance.sh → red state
             → invoke qa-reviewer → handle 2 BLOCKING items → commit → hand in report (AC↔test mapping, red-state evidence)
 architect:  report complete → taskctl set 0001 test done (built-in qa-reviewer review-closure check) → budget OK → dispatch dev.
 dev (bg):   merge baseline → turn each AC green → dev-reviewer closure → green again → deliver a green branch (no merge) → hand in report
-architect:  acceptance gate: verify --checkout green → --no-ff merge → full test suite green → set 0001 dev done (built-in review-closure check) → tear down worktree → report all green.
+architect:  acceptance gate: verify --checkout green → --no-ff merge → full test suite green in a fresh clone → set 0001 dev done (built-in review-closure check) → tear down worktree → report all green.
 ```
 
 Any role that finds an error in the spec: stop, write notes, escalate for arbitration (CLAUDE.md's "stop on overstep"). An architect reversal is recorded in the spec's change log — the accountability chain never breaks.
@@ -155,15 +154,14 @@ Any role that finds an error in the spec: stop, write notes, escalate for arbitr
 
 ## Porting to other languages
 
-The mechanical layer (taskctl, task.html, the gates, budget, review closure) is **language-agnostic** — every verdict collapses to the exit code of `acceptance.sh`, and the script is the language seam. There are five porting surfaces, each with a single customization point:
+The mechanical layer (taskctl, task.html, the gates, budget, review closure) is **language-agnostic** — every verdict collapses to the exit code of `acceptance.sh`, and the script is the language seam. There are four porting surfaces, each with a single customization point:
 
-1. **The build-conventions block in CLAUDE.md**: language baseline, full-test command, per-task test selection mechanism, unimplemented stub (every other file merely references this block; no language details are duplicated).
+1. **The build-conventions block in CLAUDE.md**: language baseline, full-test command, per-task test selection mechanism, unimplemented stub, ticket-only slot (every other file merely references this block; no language details are duplicated).
 2. **The contents of acceptance.sh**: swap in `cargo test task_<id>` / `pytest -m task_<id>` / `cabal test --test-options="--pattern task-<id>"` and so on — the script contract (exit 0 ⟺ everything passed, idempotent, non-interactive) is unchanged.
 3. **The language-features section of coding-standards**: replace the whole section with target-language instances; the priorities and cold/hot partitioning stay.
 4. **settings.local.json permissions**: swap `Bash(mvn *)` for your build tool.
-5. **The example spec** (`_example.html`) is a Java demo, for reference only; no need to port it.
 
-The general statement of the red-state rule: the build must pass (compilation for compiled languages, load/import for dynamic ones), and red must be red at a runtime assertion or an unimplemented stub.
+The general statement of the red-state rule: the build must pass (compilation for compiled languages, load/import for dynamic ones), and red must be red at a runtime assertion or an unimplemented stub. The general statement of the fresh-checkout invariant: at every baseline commit the full-test command is green on a fresh clone with nothing but the toolchain; whatever needs more is a ticket-only check and lives in acceptance.sh.
 
 ## Local fallback mode (everyone switches to a local LLM when quota runs out)
 
@@ -252,7 +250,7 @@ The price, already accounted for: tamper-evident review files drop from git hist
 - **Concurrency**: architect hardcodes 1 qa + 1 dev. Before adding concurrency, think through merge serialization (several devs merging back into the baseline at once needs a merge queue).
 - **Thresholds**: `PIPELINE_MIN_QUOTA_PCT` (20), `PIPELINE_MIN_CONTEXT_PCT` (15), `PIPELINE_BUDGET_MAX_AGE` (900s).
 - **Review rounds**: the cap of 2 is already mechanically enforced by taskctl (`MAX_REVIEW_ROUNDS`); "at most two rounds" in the agent files is just a restatement of the same contract.
-- **Shape of the acceptance command**: the examples use Maven + JUnit5 `@Tag`; switching build systems only requires editing section 3's sketch in `_template.html` and `_example/acceptance.sh`.
+- **Shape of the acceptance command**: the examples use Maven + JUnit5 `@Tag`; switching build systems only requires the build-conventions block and the sketch in `/mechanical-acceptance`. The split is fixed across languages: regression tests run on every build and must pass on a fresh checkout; ticket-only checks (build/packaging verification, real services, one-time state) run only through acceptance.sh.
 
 ## Known pitfalls
 
