@@ -47,7 +47,7 @@ tasks/specs/_example.html + _example/acceptance.sh        填好的满分示范
 2. 项目根必须是 git 仓库；流水线运行在**你当前检出的分支**上（基线分支，派发时钉定），与 develop/main 的关系归团队 CI/CD 管。`chmod +x .claude/pipeline/*.sh .claude/skills/*/scripts/*`。
 3. 首次 `claude` 启动时接受 workspace trust（statusline、项目技能的 allowed-tools 都依赖它）。
 4. statusline：`.claude/settings.local.json` 已接好 `statusline-budget.sh`。若你已有自己的 statusline，把你的脚本里加一行 `tee >(bash .claude/pipeline/statusline-budget.sh >/dev/null)` 或直接调用它——**没有它，/token-budget 永远 UNKNOWN**（门禁会降级而不是失效）。
-5. 启动：`claude --agent architect --model fable`（frontmatter 已写 `model: fable`，命令行再钉一次是主会话的保险；想固定为默认，在 settings.json 加 `"agent": "architect"`）。建议配 `--permission-mode acceptEdits` 或维持 settings 里的 git/mvn 免审批清单，否则后台子代理的权限询问会频繁上浮打断你。
+5. 启动：`claude --agent architect --model fable`（frontmatter 已写 `model: fable`，命令行再钉一次是主会话的保险；想固定为默认，在 settings.json 加 `"agent": "architect"`）。端点没有 `fable`/`opus` 的机器，启动前先读下文「在模型集合不同的机器上运行」。建议配 `--permission-mode acceptEdits` 或维持 settings 里的 git/mvn 免审批清单，否则后台子代理的权限询问会频繁上浮打断你。
 
 ## 安装（plugin 分发）
 
@@ -209,6 +209,15 @@ architect: 验收门：verify --checkout 绿 → --no-ff 合并 → 全量测试
 
 贯穿原则：LOW 先分辨触发池（5h/7d/上下文，处方各不同）；切本地的机械前置判据是 `taskctl next dev` 的退出码；方向切换永远是重启会话而非迁移状态——状态从不住在会话里。
 
+## 在模型集合不同的机器上运行
+
+agents 的 `model:` 行是**层级名**，不是对你这台机器的断言：`fable` 给 spec 与仲裁，`opus` 给生成，`sonnet` 给便宜就够的位置。换一台机器——别的 provider、组织白名单、网关、跑 Ollama 的笔记本——用它有的模型承接这些层级，而声明的地方就是环境。Claude Code 解析子代理模型的顺序（2.1.251 起；之前该变量排最前）：逐次参数 > frontmatter > `CLAUDE_CODE_SUBAGENT_MODEL` > 主会话。本流水线每个 agent 的 frontmatter 都写了模型，所以**单独设 `CLAUDE_CODE_SUBAGENT_MODEL` 对它毫无作用**——坑就在这里。让环境胜出有两条路，都由 Claude Code 自身强制，不需要任何 agent 配合：
+
+- **重绑层级**——保留矩阵、所有版本可用、连主会话一起管。`ANTHROPIC_DEFAULT_FABLE_MODEL`、`ANTHROPIC_DEFAULT_OPUS_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_HAIKU_MODEL` 决定各别名解析成什么；供不上的层级指向你手头最好的模型，多个别名可以指向同一个目标。
+- **压平成一个模型**——`CLAUDE_CODE_SUBAGENT_MODEL=<model>` 加 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`（Claude Code ≥ 2.1.257），无视 frontmatter 与逐次参数钉死所有子代理。它不管主会话：启动时另传 `--model <model>`（否则入口 agent 的 `model: fable` 生效），或按上一条重绑 `fable`。architect 在 A0 检出钉死后关闭模型梯度。
+
+两组变量都可写进 `.claude/settings.local.json`（按项目）或 `~/.claude/settings.json`（按机器）的 `env` 块，shell 里直接 export 同样有效。在 2.1.258 上用一个 frontmatter 写 `sonnet` 的探针实测：只设变量 → 仍是 Sonnet；加 `_FORCE=1` → 变量指定的模型；重绑 Sonnet 别名 → 重绑后的模型。2.1.251–2.1.256 上 `_FORCE` 开关尚不存在，只有重绑可用。非 Anthropic 端点还要设 `PIPELINE_PROVIDER=local`，否则预算门禁会一直等永远不来的 rate-limit 头。上文的本地降级启动器是第三条路：把 frontmatter 改写进派生 profile——不改插件而让 *reviewer* 用与其他角色不同的模型，只有这条路。
+
 ## 决策记录：agent teams（已否决）
 
 **结论：qa/dev 恒为 architect 的 subagent，不采用 agent teams。** 依据固化如下，防止未来重新纠结：
@@ -238,8 +247,8 @@ architect: 验收门：verify --checkout 绿 → --no-ff 合并 → 全量测试
 
 ## 调参位
 
-- **模型矩阵**（frontmatter 已配）：architect=`fable`、qa=`opus`、dev=`opus`、qa-reviewer=`opus`、dev-reviewer=`fable`。理由：spec 与仲裁是最高杠杆点，Fable 花在 architect；dev 线保留"便宜生成器 + 昂贵校验器"的不对称（dev-reviewer 是全流水线最便宜的会话，升 Fable 边际成本最低、收益最高）。注意 Fable 在 Max 订阅上以约 2 倍权重计入共享池且封顶周限额的 50%——撞顶只影响 Fable 角色，届时把 architect/dev-reviewer 临时降为 `opus` 即可（改 frontmatter 或 `/model`）。别名会随新版本漂移，要钉死就换成 `/model` 列表里的完整模型串。**矩阵是默认值不是定值**：Agent 调用支持 per-invocation 模型覆盖（解析优先级：`CLAUDE_CODE_SUBAGENT_MODEL` env > 调用参数 > frontmatter > 主会话），architect 按三判据动态选模——难度降档（简单 dev 任务派 sonnet，机械层兜底）、水位降档（余量 <40% 降一档延长跑道）、失败升档（重派比上次高一档）——形成 fable→opus→sonnet→本地 的梯度降级连续体。注意 `CLAUDE_CODE_SUBAGENT_MODEL` 优先级最高会碾平一切 per-agent 区分，勿全局设置。
-- **动态模型梯度**：architect 派发时可传逐次 model 参数（仅 sonnet/opus/haiku 枚举，fable 与本地模型传不了——前者靠 frontmatter，后者必须整进程切换，见本地降级模式）。策略：充足带按矩阵；紧张带 dev 降 sonnet（Sonnet 5 与 Opus 5 价差已收窄至 1.67×，降档省约四成而非旧时代的五倍——只降 dev 划算，降 qa 不划算）；verify 打回的降档任务重派时升回 opus。**勿设 CLAUDE_CODE_SUBAGENT_MODEL**（上游 bug：会吞掉逐次参数）。
+- **模型矩阵**（frontmatter 已配）：architect=`fable`、qa=`opus`、dev=`opus`、qa-reviewer=`opus`、dev-reviewer=`fable`。理由：spec 与仲裁是最高杠杆点，Fable 花在 architect；dev 线保留"便宜生成器 + 昂贵校验器"的不对称（dev-reviewer 是全流水线最便宜的会话，升 Fable 边际成本最低、收益最高）。注意 Fable 在 Max 订阅上以约 2 倍权重计入共享池且封顶周限额的 50%——撞顶只影响 Fable 角色，届时把 architect/dev-reviewer 临时降为 `opus` 即可（改 frontmatter 或 `/model`）。别名会随新版本漂移，要钉死就换成 `/model` 列表里的完整模型串。**矩阵是默认值不是定值**：Agent 调用支持 per-invocation 模型覆盖（Claude Code 2.1.251 起的解析顺序：调用参数 > frontmatter > `CLAUDE_CODE_SUBAGENT_MODEL` > 主会话；2.1.251 之前该变量排最前），architect 按三判据动态选模——难度降档（简单 dev 任务派 sonnet，机械层兜底）、水位降档（余量 <40% 降一档延长跑道）、失败升档（重派比上次高一档）——形成 fable→opus→sonnet→本地 的梯度降级连续体。要让环境有意压过矩阵，见「在模型集合不同的机器上运行」。
+- **动态模型梯度**：architect 派发时可传逐次 model 参数（Agent 工具的枚举：sonnet/opus/haiku，新版本另有 fable；本地模型传不了——必须整进程切换，见本地降级模式）。策略：充足带按矩阵；紧张带 dev 降 sonnet（Sonnet 5 与 Opus 5 价差已收窄至 1.67×，降档省约四成而非旧时代的五倍——只降 dev 划算，降 qa 不划算）；verify 打回的降档任务重派时升回 opus。2.1.251 起逐次参数压过 `CLAUDE_CODE_SUBAGENT_MODEL`；设了 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` 时梯度失去意义，architect 在 A0 检出后整体跳过。
 - **并发**：architect 硬编码 1 qa + 1 dev。加并发前先想清楚合并串行化（多 dev 同时回并基线需要合并队列）。
 - **阈值**：`PIPELINE_MIN_QUOTA_PCT`（20）、`PIPELINE_MIN_CONTEXT_PCT`（15）、`PIPELINE_BUDGET_MAX_AGE`（900s）。
 - **评审轮数**：上限 2 已由 taskctl 机械强制（`MAX_REVIEW_ROUNDS`）；agent 文件里的"至多两轮"只是同一契约的提示语。
@@ -247,6 +256,7 @@ architect: 验收门：verify --checkout 绿 → --no-ff 合并 → 全量测试
 
 ## 已知坑
 
+- 设了 `CLAUDE_CODE_SUBAGENT_MODEL`，子代理仍跑 frontmatter 里的模型：Claude Code ≥ 2.1.251 的预期行为，frontmatter 压过该变量。加 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`（≥ 2.1.257）或用 `ANTHROPIC_DEFAULT_*_MODEL` 重绑层级——见「在模型集合不同的机器上运行」。
 - 子代理里 `cd` 不跨命令持久——所有树内操作 `git -C` 或 `cd … && …`（CLAUDE.md 已立铁律，仍是最常见事故源）。
 - 子代理续做 = **重派**：SendMessage 是 teams 门控工具，默认配置下不存在（上游 issue #35240），本设计不依赖它——qa/dev 流程幂等，重派的新实例从 spec/notes/工作树接续。
 - 验收门第①步的门前检查：主检出应干净——`tasks/` 与 `.claude/` 不入库后天然干净，脏了说明有角色越界动了代码区。

@@ -1,6 +1,6 @@
 {
   "name": "dev-pipeline",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "Five-role software development pipeline profile: spec-driven, mechanical acceptance, review gates, closed accountability loop. Language-agnostic (build conventions declared per project).",
   "author": {
     "name": "Vincent"

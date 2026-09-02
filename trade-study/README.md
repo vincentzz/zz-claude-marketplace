@@ -52,6 +52,8 @@ claude            # plain session
 
 Ships `defaultEnabled: false` and `entryAgent: analyst` — installing enables nothing; `/use-profile` (from the always-on profile-switcher) binds it per project. A Chinese variant, **trade-study-cn**, ships the same pipeline with all prose in Chinese — enable only one of the two (same agent names).
 
+Models: analyst `fable`, scout `sonnet`, challenger `opus`, named in each agent's frontmatter as tier names. On a machine with a different model set, rebind the tiers with `ANTHROPIC_DEFAULT_FABLE_MODEL` / `ANTHROPIC_DEFAULT_OPUS_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL`, or pin every subagent with `CLAUDE_CODE_SUBAGENT_MODEL` plus `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` (Claude Code ≥ 2.1.257; add `--model` for the analyst session itself). `CLAUDE_CODE_SUBAGENT_MODEL` on its own has been outranked by the frontmatter since 2.1.251 and changes nothing here.
+
 ## Deliberately thin
 
 No task queues, no worktrees, no state machines, no gates beyond the challenger — 3 agents, 5 skills. 0.1.0 starts minimal by design; every addition needs evidence from a real study.

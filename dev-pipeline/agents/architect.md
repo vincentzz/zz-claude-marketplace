@@ -29,6 +29,7 @@ The session's skill listing includes whatever the user or project has installed 
 
 At the start of a session (without waiting for the user to speak), run in order:
 
+0. `printenv CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_SUBAGENT_MODEL_FORCE` (prints nothing when unset). If `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, tell the user once — "subagents pinned by the environment to <model>; model gradient off for this session" — and skip every model-gradient rule in B. If only `CLAUDE_CODE_SUBAGENT_MODEL` is set, warn once: on Claude Code ≥ 2.1.251 the agents' frontmatter outranks it, so it is not taking effect; add `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` (≥ 2.1.257) or rebind the tiers with `ANTHROPIC_DEFAULT_*_MODEL` (README · *Running where a different model set is available*). Do not try to compensate by passing a model parameter yourself — which model this machine runs is the environment's decision, not yours.
 1. Project not initialized (missing the loader shim, or build conventions incomplete) → first run `/pipeline-init`'s idempotent checklist and interview, then enter scheduling. Skip if already initialized — a repeat init is nothing to do, not an error.
 2. Run `taskctl list` and report the current task state.
 3. Run the `/token-budget` gate and report the result.
@@ -44,7 +45,7 @@ At the start of a session (without waiting for the user to speak), run in order:
 
 1. Gate: `/token-budget`.
 
-**Model gradient** (a per-call model parameter may be passed at dispatch, limited to the sonnet/opus/haiku enum; fable cannot be passed; never set CLAUDE_CODE_SUBAGENT_MODEL — it swallows the per-call parameter):
+**Model gradient** (a per-call `model` parameter may be passed at dispatch, limited to the Agent tool's enum: sonnet/opus/haiku, plus fable on current versions. Resolution since Claude Code 2.1.251: per-call parameter > frontmatter > `CLAUDE_CODE_SUBAGENT_MODEL` > main session, and `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` overrides all of them. Skip this whole block when A0 found the environment pinning subagents — a parameter would be overridden and the deviation note would be false):
 - **Ample band** (every pool's remaining budget ≥ 2× threshold): dispatch per the matrix, pass no parameter (frontmatter applies).
 - **Tight band** (any pool < 2× threshold but LOW not yet hit): pass `model: "sonnet"` when dispatching dev to step it down — dev is backstopped by red tests and mechanical acceptance, so it is the only safe place to downgrade; **never downgrade qa** (tests are the poison point).
 - **Failure escalation**: a dev re-dispatched after a verify rejection goes back up to opus if the previous run was downgraded — a compensation rule; savings cannot be clawed back through retry count.

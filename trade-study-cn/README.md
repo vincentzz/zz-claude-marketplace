@@ -52,6 +52,8 @@ claude            # 普通会话
 
 出厂即 `defaultEnabled: false` 与 `entryAgent: analyst`——装而不生效；`/use-profile`（来自常驻的 profile-switcher）按项目绑定。英文变体 **trade-study** 以同一条流水线交付全英文文案——两者只启用其一（agent 同名）。
 
+模型：analyst `fable`、scout `sonnet`、challenger `opus`，写在各 agent 的 frontmatter 里，是层级名。模型集合不同的机器上，用 `ANTHROPIC_DEFAULT_FABLE_MODEL` / `ANTHROPIC_DEFAULT_OPUS_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL` 重绑层级，或用 `CLAUDE_CODE_SUBAGENT_MODEL` 加 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`（Claude Code ≥ 2.1.257；analyst 主会话另加 `--model`）钉死所有子代理。单独设 `CLAUDE_CODE_SUBAGENT_MODEL` 自 2.1.251 起被 frontmatter 压过，在这里不起作用。
+
 ## 有意的薄
 
 无任务队列、无 worktree、无状态机、除 challenger 外无门禁——3 个 agent、5 个技能。0.1.0 有意从最小起步；每次加东西都要有来自真实研究的证据。

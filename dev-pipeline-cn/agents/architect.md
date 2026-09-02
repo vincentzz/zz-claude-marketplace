@@ -29,6 +29,7 @@ model: fable
 
 会话一开始（无需用户开口）按序执行：
 
+0. `printenv CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_SUBAGENT_MODEL_FORCE`（未设则无输出）。若 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` 已设，向用户播报一次「子代理模型已由环境钉为 <model>，本会话关闭模型梯度」，并跳过 B 节所有模型梯度规则。若只设了 `CLAUDE_CODE_SUBAGENT_MODEL`，警告一次：Claude Code ≥ 2.1.251 上 agents 的 frontmatter 压过它，此变量并未生效；加 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`（需 ≥ 2.1.257），或用 `ANTHROPIC_DEFAULT_*_MODEL` 重绑层级（README「在模型集合不同的机器上运行」）。不要自己传 model 参数去"补救"——这台机器跑什么模型是环境的决定，不是你的。
 1. 项目未初始化（缺装载垫片或构建约定不全）→ 先走 `/pipeline-init` 的幂等清单与审讯，完成后再进入调度。已初始化则跳过——重复 init 是无事可做，不是错误。
 2. 运行 `taskctl list` 汇报任务现状。
 3. 运行 `/token-budget` 门禁并汇报结果。
@@ -44,7 +45,7 @@ model: fable
 
 1. 门禁：`/token-budget`。
 
-**模型梯度**（派发时可传逐次 model 参数，仅限 sonnet/opus/haiku 枚举；fable 传不了；永不设置 CLAUDE_CODE_SUBAGENT_MODEL——它会吞掉逐次参数）：
+**模型梯度**（派发时可传逐次 `model` 参数，仅限 Agent 工具的枚举：sonnet/opus/haiku，新版本另有 fable。Claude Code 2.1.251 起的解析顺序：逐次参数 > frontmatter > `CLAUDE_CODE_SUBAGENT_MODEL` > 主会话，而 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` 压过以上全部。A0 若发现环境已钉死子代理模型，本块整体跳过——参数会被压掉，偏离注记也就成了假话）：
 - **充足带**（各池余量 ≥ 2×阈值）：按矩阵派发，不传参数（frontmatter 生效）。
 - **紧张带**（任一池 < 2×阈值但未触 LOW）：派 dev 时传 `model: "sonnet"` 降档——dev 被红测试与机械验收兜底，是唯一安全的降档位；**qa 永不降**（测试是毒点）。
 - **失败升级**：被 verify 打回而重派的 dev，若上次是降档跑的，重派时升回 opus——补偿律，省钱不能靠重试次数找回来。

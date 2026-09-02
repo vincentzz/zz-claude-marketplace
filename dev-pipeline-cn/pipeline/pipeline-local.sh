@@ -4,7 +4,8 @@
 #   可选:  PIPELINE_LOCAL_URL   本地 Anthropic 兼容端点（默认 http://localhost:11434，Ollama ≥0.14）
 #          PIPELINE_LOCAL_SMALL 给两个 reviewer 用的小模型（缺省与主模型相同）
 #          PIPELINE_DRYRUN=1    只生成 profile 不启动（测试用）
-# 注意:  刻意不用 CLAUDE_CODE_SUBAGENT_MODEL——它优先级最高，会碾平 reviewer 的小模型区分。
+# 注意:  刻意不用 CLAUDE_CODE_SUBAGENT_MODEL(_FORCE)——它给所有子代理同一个模型，会碾平 reviewer 的小模型区分；
+#        且不带 _FORCE 时在 Claude Code >= 2.1.251 上本就输给 frontmatter。改写 frontmatter 才不随版本漂。
 # 原理:  从 ~/.claude 机械派生 ~/.claude-pipeline-local（agents 的 model 行替换为本地模型，
 #        skills/pipeline 原样拷贝，settings 注入本地必需项），经 CLAUDE_CONFIG_DIR 启动。
 #        派生产物每次重新生成——不手工维护，主 profile 零污染。
@@ -40,6 +41,7 @@ s = {
         # 预算门禁短路：本地模式配额不适用
         "PIPELINE_PROVIDER": "local",
         # 兜底：任何按层级请求的模型都映射到本地
+        "ANTHROPIC_DEFAULT_FABLE_MODEL": os.environ["PIPELINE_LOCAL_MODEL"],
         "ANTHROPIC_DEFAULT_OPUS_MODEL": os.environ["PIPELINE_LOCAL_MODEL"],
         "ANTHROPIC_DEFAULT_SONNET_MODEL": os.environ.get("PIPELINE_LOCAL_SMALL", os.environ["PIPELINE_LOCAL_MODEL"]),
         "ANTHROPIC_DEFAULT_HAIKU_MODEL": os.environ.get("PIPELINE_LOCAL_SMALL", os.environ["PIPELINE_LOCAL_MODEL"]),

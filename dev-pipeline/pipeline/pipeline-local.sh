@@ -4,8 +4,9 @@
 #   Optional: PIPELINE_LOCAL_URL   local Anthropic-compatible endpoint (default http://localhost:11434, Ollama >=0.14)
 #             PIPELINE_LOCAL_SMALL small model for the two reviewers (defaults to the main model)
 #             PIPELINE_DRYRUN=1    only generate the profile, do not launch (for testing)
-# Note:  CLAUDE_CODE_SUBAGENT_MODEL is deliberately unused -- it has the highest precedence and would
-#        flatten the reviewers' small-model distinction.
+# Note:  CLAUDE_CODE_SUBAGENT_MODEL(_FORCE) is deliberately unused: it is one model for every subagent,
+#        which would flatten the reviewers' small-model distinction -- and without _FORCE it loses to
+#        the frontmatter on Claude Code >= 2.1.251 anyway. Rewriting the frontmatter is version-proof.
 # How:   mechanically derive ~/.claude-pipeline-local from ~/.claude (the agents' model lines are replaced
 #        with the local model, skills/pipeline are copied verbatim, settings get the local essentials
 #        injected), then launch through CLAUDE_CONFIG_DIR. The derived profile is regenerated every run --
@@ -42,6 +43,7 @@ s = {
         # Short-circuit the budget gate: quotas do not apply in local mode
         "PIPELINE_PROVIDER": "local",
         # Catch-all: map every tier-requested model to the local one
+        "ANTHROPIC_DEFAULT_FABLE_MODEL": os.environ["PIPELINE_LOCAL_MODEL"],
         "ANTHROPIC_DEFAULT_OPUS_MODEL": os.environ["PIPELINE_LOCAL_MODEL"],
         "ANTHROPIC_DEFAULT_SONNET_MODEL": os.environ.get("PIPELINE_LOCAL_SMALL", os.environ["PIPELINE_LOCAL_MODEL"]),
         "ANTHROPIC_DEFAULT_HAIKU_MODEL": os.environ.get("PIPELINE_LOCAL_SMALL", os.environ["PIPELINE_LOCAL_MODEL"]),
